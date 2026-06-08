@@ -1,0 +1,59 @@
+.od-press-pilot {
+	max-width: 1280px;
+}
+
+.od-press-pilot__header {
+	margin: 24px 0;
+}
+
+.od-press-pilot__header h1 {
+	margin: 0;
+	font-size: 24px;
+	line-height: 1.3;
+}
+
+.od-press-pilot__layout {
+	display: grid;
+	grid-template-columns: minmax(320px, 440px) minmax(0, 1fr);
+	gap: 24px;
+	align-items: start;
+}
+
+.od-press-pilot__grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 16px 24px;
+}
+
+.od-press-pilot__tabs .components-tab-panel__tabs {
+	margin-bottom: 20px;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.od-press-pilot__actions {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	margin-top: 20px;
+}
+
+.od-press-pilot__result-field {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 12px;
+	align-items: end;
+	margin-bottom: 16px;
+}
+
+.od-press-pilot__empty {
+	margin: 0;
+	color: #646970;
+}
+
+@media (max-width: 960px) {
+	.od-press-pilot__layout,
+	.od-press-pilot__grid,
+	.od-press-pilot__result-field {
+		grid-template-columns: 1fr;
+	}
+}

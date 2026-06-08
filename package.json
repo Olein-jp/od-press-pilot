@@ -4,6 +4,8 @@
   "private": true,
   "description": "Local WordPress plugin development environment for OD Press Pilot.",
   "scripts": {
+    "build": "wp-scripts build",
+    "start": "wp-scripts start",
     "env:start": "wp-env start",
     "env:stop": "wp-env stop",
     "env:destroy": "wp-env destroy",
@@ -12,7 +14,8 @@
     "lint:php": "find . -path ./vendor -prune -o -path ./node_modules -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l"
   },
   "devDependencies": {
-    "@wordpress/env": "^10.21.0"
+    "@wordpress/env": "^10.21.0",
+    "@wordpress/scripts": "^32.4.0"
   },
   "engines": {
     "node": ">=20"

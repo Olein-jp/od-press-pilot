@@ -1,0 +1,95 @@
+<?php
+/**
+ * Admin screens and assets.
+ *
+ * @package ODPressPilot
+ */
+
+declare(strict_types=1);
+
+namespace ODPressPilot\Admin;
+
+if (! defined('ABSPATH')) {
+	exit;
+}
+
+final class Admin {
+	private const MENU_SLUG    = 'od-press-pilot';
+	private const PROFILE_SLUG = 'od-press-pilot-profile';
+
+	public static function init(): void {
+		add_action('admin_menu', [self::class, 'register_menu']);
+		add_action('admin_enqueue_scripts', [self::class, 'enqueue_assets']);
+	}
+
+	public static function register_menu(): void {
+		add_menu_page(
+			__('AIお知らせ作成', 'od-press-pilot'),
+			__('AIお知らせ作成', 'od-press-pilot'),
+			'edit_posts',
+			self::MENU_SLUG,
+			[self::class, 'render_page'],
+			'dashicons-megaphone',
+			26
+		);
+
+		add_submenu_page(
+			self::MENU_SLUG,
+			__('コンテンツ生成', 'od-press-pilot'),
+			__('コンテンツ生成', 'od-press-pilot'),
+			'edit_posts',
+			self::MENU_SLUG,
+			[self::class, 'render_page']
+		);
+
+		add_submenu_page(
+			self::MENU_SLUG,
+			__('広報プロフィール', 'od-press-pilot'),
+			__('広報プロフィール', 'od-press-pilot'),
+			'manage_options',
+			self::PROFILE_SLUG,
+			[self::class, 'render_page']
+		);
+	}
+
+	public static function enqueue_assets(string $hook_suffix): void {
+		$page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+
+		if (! in_array($page, [self::MENU_SLUG, self::PROFILE_SLUG], true)) {
+			return;
+		}
+
+		$asset_file = OD_PRESS_PILOT_PLUGIN_DIR . 'build/index.asset.php';
+		$asset      = file_exists($asset_file) ? require $asset_file : ['dependencies' => [], 'version' => OD_PRESS_PILOT_VERSION];
+
+		wp_enqueue_script(
+			'od-press-pilot-admin',
+			OD_PRESS_PILOT_PLUGIN_URL . 'build/index.js',
+			$asset['dependencies'],
+			$asset['version'],
+			true
+		);
+
+		wp_enqueue_style(
+			'od-press-pilot-admin',
+			OD_PRESS_PILOT_PLUGIN_URL . 'build/style-index.css',
+			['wp-components'],
+			$asset['version']
+		);
+
+		wp_set_script_translations('od-press-pilot-admin', 'od-press-pilot', OD_PRESS_PILOT_PLUGIN_DIR . 'languages');
+
+		wp_localize_script(
+			'od-press-pilot-admin',
+			'odPressPilot',
+			[
+				'restNamespace' => OD_PRESS_PILOT_REST_NAMESPACE,
+				'page'          => self::PROFILE_SLUG === $page ? 'profile' : 'generate',
+			]
+		);
+	}
+
+	public static function render_page(): void {
+		echo '<div class="wrap"><div id="od-press-pilot-admin"></div></div>';
+	}
+}
