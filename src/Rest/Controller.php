@@ -124,18 +124,49 @@ final class Controller {
 	 * @return array<string, mixed>
 	 */
 	private static function sanitize_generation_request(array $params): array {
-		$translation_language = sanitize_key((string) ($params['translation_language'] ?? 'none'));
-		$allowed_languages    = ['none', 'en', 'zh-hans', 'zh-hant', 'ko', 'ja', 'custom'];
+		$translation_languages = self::sanitize_translation_languages($params);
 
 		return [
 			'post_content'                => sanitize_textarea_field((string) ($params['post_content'] ?? '')),
 			'audience'                    => sanitize_text_field((string) ($params['audience'] ?? '')),
 			'desired_length'              => absint($params['desired_length'] ?? 0),
-			'translation_language'        => in_array($translation_language, $allowed_languages, true) ? $translation_language : 'none',
+			'translation_language'        => $translation_languages[0] ?? 'none',
+			'translation_languages'       => $translation_languages,
 			'custom_translation_language' => sanitize_text_field((string) ($params['custom_translation_language'] ?? '')),
 			'use_emoji'                   => ! empty($params['use_emoji']),
 			'generate_hashtags'           => ! empty($params['generate_hashtags']),
 			'provider'                    => sanitize_key((string) ($params['provider'] ?? '')),
 		];
+	}
+
+	/**
+	 * @param array<string, mixed> $params Raw params.
+	 * @return string[]
+	 */
+	private static function sanitize_translation_languages(array $params): array {
+		$allowed_languages = ['en', 'zh-hans', 'zh-hant', 'ko', 'ja', 'custom'];
+		$raw_languages     = $params['translation_languages'] ?? [];
+
+		if (! is_array($raw_languages)) {
+			$raw_languages = [];
+		}
+
+		if ([] === $raw_languages && ! empty($params['translation_language'])) {
+			$raw_languages = [(string) $params['translation_language']];
+		}
+
+		$languages = array_values(
+			array_unique(
+				array_filter(
+					array_map(
+						static fn ($language): string => sanitize_key((string) $language),
+						$raw_languages
+					),
+					static fn (string $language): bool => in_array($language, $allowed_languages, true)
+				)
+			)
+		);
+
+		return $languages;
 	}
 }

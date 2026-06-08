@@ -49,13 +49,7 @@ final class Client {
 		if (is_wp_error($json)) {
 			self::log_generation_error($json);
 
-			$error_text = strtolower($json->get_error_code() . ' ' . $json->get_error_message());
-
-			if (false !== strpos($error_text, 'timeout') || false !== strpos($error_text, 'timed out')) {
-				return new WP_Error('od_press_pilot_timeout', __('応答がタイムアウトしました。', 'od-press-pilot'), ['status' => 504]);
-			}
-
-			return new WP_Error('od_press_pilot_generation_failed', __('コンテンツ生成に失敗しました。', 'od-press-pilot'), ['status' => 502]);
+			return self::create_generation_error($json);
 		}
 
 		return ResponseParser::parse((string) $json);
@@ -74,6 +68,149 @@ final class Client {
 				wp_json_encode($error->get_error_data(), JSON_UNESCAPED_UNICODE)
 			)
 		);
+	}
+
+	private static function create_generation_error(WP_Error $error): WP_Error {
+		$details = self::generation_error_details($error);
+
+		return new WP_Error(
+			$details['code'],
+			$details['message'],
+			[
+				'status'  => $details['status'],
+				'details' => $details['raw'],
+			]
+		);
+	}
+
+	/**
+	 * @return array{code:string,message:string,status:int,raw:string}
+	 */
+	private static function generation_error_details(WP_Error $error): array {
+		$raw        = self::error_text($error);
+		$normalized = strtolower($raw);
+
+		if (self::contains_any($normalized, ['timeout', 'timed out', 'cURL error 28'])) {
+			return [
+				'code'    => 'od_press_pilot_timeout',
+				'message' => __('AI Provider からの応答がタイムアウトしました。しばらく待ってから再実行してください。', 'od-press-pilot') . self::format_raw_error($raw),
+				'status'  => 504,
+				'raw'     => $raw,
+			];
+		}
+
+		if (self::contains_any($normalized, ['insufficient_quota', 'quota', 'billing', 'credit', 'credits', 'balance', 'payment', 'hard_limit'])) {
+			return [
+				'code'    => 'od_press_pilot_billing_required',
+				'message' => __('AI Provider 側の利用枠またはクレジットが不足している可能性があります。API キーを発行済みでも、Billing の有効化、支払い方法、またはクレジット残高を確認してください。', 'od-press-pilot') . self::format_raw_error($raw),
+				'status'  => 402,
+				'raw'     => $raw,
+			];
+		}
+
+		if (self::contains_any($normalized, ['invalid_api_key', 'incorrect api key', 'api key', 'unauthorized', 'authentication', '401'])) {
+			return [
+				'code'    => 'od_press_pilot_auth_failed',
+				'message' => __('AI Provider の認証に失敗しました。Settings > Connectors で API キーが正しく保存されているか、キーが無効化されていないか確認してください。', 'od-press-pilot') . self::format_raw_error($raw),
+				'status'  => 401,
+				'raw'     => $raw,
+			];
+		}
+
+		if (self::contains_any($normalized, ['rate_limit', 'rate limit', 'too many requests', '429'])) {
+			return [
+				'code'    => 'od_press_pilot_rate_limited',
+				'message' => __('AI Provider のレート制限に達しました。少し時間を空けてから再実行してください。', 'od-press-pilot') . self::format_raw_error($raw),
+				'status'  => 429,
+				'raw'     => $raw,
+			];
+		}
+
+		if (self::contains_any($normalized, ['forbidden', 'permission', 'not allowed', '403'])) {
+			return [
+				'code'    => 'od_press_pilot_provider_forbidden',
+				'message' => __('AI Provider でこの操作が許可されていません。利用中のキー、Provider、またはモデルの権限を確認してください。', 'od-press-pilot') . self::format_raw_error($raw),
+				'status'  => 403,
+				'raw'     => $raw,
+			];
+		}
+
+		if (self::contains_any($normalized, ['model_not_found', 'model not found', 'unsupported model', 'not supported'])) {
+			return [
+				'code'    => 'od_press_pilot_model_unavailable',
+				'message' => __('選択中の AI Provider またはモデルではテキスト生成を利用できません。Provider の設定を確認してください。', 'od-press-pilot') . self::format_raw_error($raw),
+				'status'  => 503,
+				'raw'     => $raw,
+			];
+		}
+
+		return [
+			'code'    => 'od_press_pilot_generation_failed',
+			'message' => __('コンテンツ生成に失敗しました。AI Provider から返された詳細を確認してください。', 'od-press-pilot') . self::format_raw_error($raw),
+			'status'  => 502,
+			'raw'     => $raw,
+		];
+	}
+
+	private static function error_text(WP_Error $error): string {
+		$parts = array_filter(
+			[
+				$error->get_error_code(),
+				$error->get_error_message(),
+				self::stringify_error_data($error->get_error_data()),
+			]
+		);
+
+		return self::redact_sensitive_text(implode(' ', $parts));
+	}
+
+	/**
+	 * @param mixed $data Error data.
+	 */
+	private static function stringify_error_data($data): string {
+		if (empty($data)) {
+			return '';
+		}
+
+		if (is_scalar($data)) {
+			return (string) $data;
+		}
+
+		$encoded = wp_json_encode($data, JSON_UNESCAPED_UNICODE);
+
+		return is_string($encoded) ? $encoded : '';
+	}
+
+	private static function redact_sensitive_text(string $text): string {
+		$text = preg_replace('/sk-[A-Za-z0-9_-]{8,}/', 'sk-***', $text) ?? $text;
+		$text = preg_replace('/Bearer\s+[A-Za-z0-9._-]+/i', 'Bearer ***', $text) ?? $text;
+
+		return trim(wp_strip_all_tags($text));
+	}
+
+	private static function format_raw_error(string $raw): string {
+		if ('' === $raw) {
+			return '';
+		}
+
+		return ' ' . sprintf(
+			/* translators: %s: Raw AI Provider error message. */
+			__('Provider からの詳細: %s', 'od-press-pilot'),
+			$raw
+		);
+	}
+
+	/**
+	 * @param string[] $needles Search strings.
+	 */
+	private static function contains_any(string $haystack, array $needles): bool {
+		foreach ($needles as $needle) {
+			if (false !== strpos($haystack, strtolower($needle))) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**

@@ -44,6 +44,15 @@ const defaultResult = {
 	hashtags: [],
 };
 
+const translationLanguageOptions = [
+	{ label: __( '英語', 'od-press-pilot' ), value: 'en' },
+	{ label: __( '中国語（簡体字）', 'od-press-pilot' ), value: 'zh-hans' },
+	{ label: __( '中国語（繁体字）', 'od-press-pilot' ), value: 'zh-hant' },
+	{ label: __( '韓国語', 'od-press-pilot' ), value: 'ko' },
+	{ label: __( '日本語', 'od-press-pilot' ), value: 'ja' },
+	{ label: __( 'カスタム入力', 'od-press-pilot' ), value: 'custom' },
+];
+
 function getErrorMessage( error, fallback ) {
 	return error?.message || fallback;
 }
@@ -167,7 +176,7 @@ function GeneratePage() {
 		post_content: '',
 		audience: '',
 		desired_length: '',
-		translation_language: 'none',
+		translation_languages: [],
 		custom_translation_language: '',
 		use_emoji: false,
 		generate_hashtags: true,
@@ -199,6 +208,13 @@ function GeneratePage() {
 
 	const updateForm = ( key, value ) => setForm( { ...form, [ key ]: value } );
 	const updateResult = ( key, value ) => setResult( { ...result, [ key ]: value } );
+	const updateTranslationLanguages = ( language, isChecked ) => {
+		const nextLanguages = isChecked
+			? Array.from( new Set( [ ...form.translation_languages, language ] ) )
+			: form.translation_languages.filter( ( currentLanguage ) => currentLanguage !== language );
+
+		updateForm( 'translation_languages', nextLanguages );
+	};
 
 	const generate = async () => {
 		setIsGenerating( true );
@@ -275,61 +291,63 @@ function GeneratePage() {
 				<Card>
 					<CardBody>
 						<PanelBody title={ __( '生成条件', 'od-press-pilot' ) } initialOpen>
-							<TextareaControl
-								label={ __( '投稿内容', 'od-press-pilot' ) }
-								value={ form.post_content }
-								rows={ 10 }
-								required
-								onChange={ ( value ) => updateForm( 'post_content', value ) }
-							/>
-							<TextControl
-								label={ __( '対象読者', 'od-press-pilot' ) }
-								value={ form.audience }
-								onChange={ ( value ) => updateForm( 'audience', value ) }
-							/>
-							<TextControl
-								type="number"
-								label={ __( '希望文字数', 'od-press-pilot' ) }
-								value={ form.desired_length }
-								onChange={ ( value ) => updateForm( 'desired_length', value ) }
-							/>
-							<SelectControl
-								label={ __( '翻訳言語', 'od-press-pilot' ) }
-								value={ form.translation_language }
-								options={ [
-									{ label: __( 'なし', 'od-press-pilot' ), value: 'none' },
-									{ label: __( '英語', 'od-press-pilot' ), value: 'en' },
-									{ label: __( '中国語（簡体字）', 'od-press-pilot' ), value: 'zh-hans' },
-									{ label: __( '中国語（繁体字）', 'od-press-pilot' ), value: 'zh-hant' },
-									{ label: __( '韓国語', 'od-press-pilot' ), value: 'ko' },
-									{ label: __( '日本語', 'od-press-pilot' ), value: 'ja' },
-									{ label: __( 'カスタム入力', 'od-press-pilot' ), value: 'custom' },
-								] }
-								onChange={ ( value ) => updateForm( 'translation_language', value ) }
-							/>
-							{ form.translation_language === 'custom' && (
-								<TextControl
-									label={ __( 'カスタム翻訳言語', 'od-press-pilot' ) }
-									value={ form.custom_translation_language }
-									onChange={ ( value ) => updateForm( 'custom_translation_language', value ) }
+							<div className="od-press-pilot__form-stack">
+								<TextareaControl
+									label={ __( '投稿内容', 'od-press-pilot' ) }
+									value={ form.post_content }
+									rows={ 10 }
+									required
+									onChange={ ( value ) => updateForm( 'post_content', value ) }
 								/>
-							) }
-							<CheckboxControl
-								label={ __( '絵文字を利用する', 'od-press-pilot' ) }
-								checked={ form.use_emoji }
-								onChange={ ( value ) => updateForm( 'use_emoji', value ) }
-							/>
-							<CheckboxControl
-								label={ __( 'ハッシュタグを生成する', 'od-press-pilot' ) }
-								checked={ form.generate_hashtags }
-								onChange={ ( value ) => updateForm( 'generate_hashtags', value ) }
-							/>
-							<SelectControl
-								label={ __( 'AI Provider', 'od-press-pilot' ) }
-								value={ form.provider }
-								options={ providerOptions }
-								onChange={ ( value ) => updateForm( 'provider', value ) }
-							/>
+								<TextControl
+									label={ __( '対象読者', 'od-press-pilot' ) }
+									value={ form.audience }
+									onChange={ ( value ) => updateForm( 'audience', value ) }
+								/>
+								<TextControl
+									type="number"
+									label={ __( '希望文字数', 'od-press-pilot' ) }
+									value={ form.desired_length }
+									onChange={ ( value ) => updateForm( 'desired_length', value ) }
+								/>
+								<fieldset className="od-press-pilot__translation-control">
+									<legend>{ __( '翻訳言語', 'od-press-pilot' ) }</legend>
+									<div className="od-press-pilot__translation-options">
+										{ translationLanguageOptions.map( ( option ) => (
+											<CheckboxControl
+												key={ option.value }
+												label={ option.label }
+												checked={ form.translation_languages.includes( option.value ) }
+												onChange={ ( value ) => updateTranslationLanguages( option.value, value ) }
+											/>
+										) ) }
+									</div>
+								</fieldset>
+								{ form.translation_languages.includes( 'custom' ) && (
+									<TextControl
+										label={ __( 'カスタム翻訳言語', 'od-press-pilot' ) }
+										placeholder={ __( '例: フランス語、スペイン語、ベトナム語', 'od-press-pilot' ) }
+										value={ form.custom_translation_language }
+										onChange={ ( value ) => updateForm( 'custom_translation_language', value ) }
+									/>
+								) }
+								<CheckboxControl
+									label={ __( '絵文字を利用する', 'od-press-pilot' ) }
+									checked={ form.use_emoji }
+									onChange={ ( value ) => updateForm( 'use_emoji', value ) }
+								/>
+								<CheckboxControl
+									label={ __( 'ハッシュタグを生成する', 'od-press-pilot' ) }
+									checked={ form.generate_hashtags }
+									onChange={ ( value ) => updateForm( 'generate_hashtags', value ) }
+								/>
+								<SelectControl
+									label={ __( 'AI Provider', 'od-press-pilot' ) }
+									value={ form.provider }
+									options={ providerOptions }
+									onChange={ ( value ) => updateForm( 'provider', value ) }
+								/>
+							</div>
 							<div className="od-press-pilot__actions">
 								<Button variant="primary" onClick={ generate } isBusy={ isGenerating } disabled={ isGenerating || ! form.post_content }>
 									{ __( '生成', 'od-press-pilot' ) }

@@ -22,13 +22,13 @@ final class PromptBuilder {
 	 */
 	public static function build(array $profile, array $request): string {
 		$profile_text = self::format_profile($profile);
-		$translation  = self::translation_label((string) ($request['translation_language'] ?? 'none'), (string) ($request['custom_translation_language'] ?? ''));
+		$translation  = self::translation_label($request['translation_languages'] ?? ($request['translation_language'] ?? []), (string) ($request['custom_translation_language'] ?? ''));
 		$emoji        = ! empty($request['use_emoji']) ? 'あり' : 'なし';
 		$hashtags     = ! empty($request['generate_hashtags']) ? 'あり' : 'なし';
 		$length       = ! empty($request['desired_length']) ? (string) absint($request['desired_length']) . '文字程度' : '指定なし';
 
 		return sprintf(
-			"あなたは、この事業者専属の広報担当者です。\n\n事業者プロフィール:\n%s\n\n追加指示:\n%s\n\n今回のお知らせ内容:\n%s\n\n対象読者:\n%s\n\n希望文字数:\n%s\n\n翻訳言語:\n%s\n\n絵文字利用:\n%s\n\nハッシュタグ生成:\n%s\n\nルール:\n- 事実を勝手に追加しない\n- 不明な情報は推測しない\n- 誇大表現を避ける\n- ターゲットに合わせる\n- 事業者らしい文章にする\n- メインコンテンツはWordPressブロックエディターへ貼り付け可能な形式で出力する\n- すべて日本語で出力する\n- 指定された翻訳言語がある場合のみ翻訳版を出力する\n- JSON以外の文字を出力しない\n\nJSON Schema:\n%s",
+			"あなたは、この事業者専属の広報担当者です。\n\n事業者プロフィール:\n%s\n\n追加指示:\n%s\n\n今回のお知らせ内容:\n%s\n\n対象読者:\n%s\n\n希望文字数:\n%s\n\n翻訳言語:\n%s\n\n絵文字利用:\n%s\n\nハッシュタグ生成:\n%s\n\nルール:\n- 事実を勝手に追加しない\n- 不明な情報は推測しない\n- 誇大表現を避ける\n- ターゲットに合わせる\n- 事業者らしい文章にする\n- メインコンテンツはWordPressブロックエディターへ貼り付け可能な形式で出力する\n- すべて日本語で出力する\n- 指定された翻訳言語がある場合のみ翻訳版を出力する\n- 翻訳言語が複数ある場合、sns_summary_translated には言語名ごとに見出しを付けてすべての翻訳を含める\n- JSON以外の文字を出力しない\n\nJSON Schema:\n%s",
 			$profile_text,
 			$profile['additional_notes'],
 			(string) ($request['post_content'] ?? ''),
@@ -93,17 +93,35 @@ final class PromptBuilder {
 		return implode("\n", $lines);
 	}
 
-	private static function translation_label(string $language, string $custom_language): string {
+	/**
+	 * @param mixed $languages Requested translation languages.
+	 */
+	private static function translation_label($languages, string $custom_language): string {
 		$labels = [
-			'none'    => 'なし',
 			'en'      => '英語',
 			'zh-hans' => '中国語（簡体字）',
 			'zh-hant' => '中国語（繁体字）',
 			'ko'      => '韓国語',
 			'ja'      => '日本語',
-			'custom'  => $custom_language,
+			'custom'  => '' !== $custom_language ? $custom_language : 'カスタム言語',
 		];
 
-		return $labels[$language] ?? 'なし';
+		if (! is_array($languages)) {
+			$languages = [(string) $languages];
+		}
+
+		$translated_labels = [];
+
+		foreach ($languages as $language) {
+			$language = sanitize_key((string) $language);
+
+			if (isset($labels[$language])) {
+				$translated_labels[] = $labels[$language];
+			}
+		}
+
+		$translated_labels = array_values(array_unique($translated_labels));
+
+		return [] === $translated_labels ? 'なし' : implode('、', $translated_labels);
 	}
 }
