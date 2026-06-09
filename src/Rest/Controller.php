@@ -12,6 +12,7 @@ namespace ODPressPilot\Rest;
 use ODPressPilot\AI\Client;
 use ODPressPilot\Draft\DraftCreator;
 use ODPressPilot\Settings\ProfileSettings;
+use ODPressPilot\Settings\TemplateSettings;
 use WP_REST_Request;
 use WP_REST_Server;
 
@@ -45,6 +46,40 @@ final class Controller {
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => [self::class, 'get_providers'],
 				'permission_callback' => static fn (): bool => current_user_can('edit_posts'),
+			]
+		);
+
+		register_rest_route(
+			OD_PRESS_PILOT_REST_NAMESPACE,
+			'/templates',
+			[
+				[
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => [self::class, 'get_templates'],
+					'permission_callback' => static fn (): bool => current_user_can('edit_posts'),
+				],
+				[
+					'methods'             => WP_REST_Server::CREATABLE,
+					'callback'            => [self::class, 'create_template'],
+					'permission_callback' => static fn (): bool => current_user_can('edit_posts'),
+				],
+			]
+		);
+
+		register_rest_route(
+			OD_PRESS_PILOT_REST_NAMESPACE,
+			'/templates/(?P<id>[A-Za-z0-9_-]+)',
+			[
+				[
+					'methods'             => WP_REST_Server::EDITABLE,
+					'callback'            => [self::class, 'update_template'],
+					'permission_callback' => static fn (): bool => current_user_can('edit_posts'),
+				],
+				[
+					'methods'             => WP_REST_Server::DELETABLE,
+					'callback'            => [self::class, 'delete_template'],
+					'permission_callback' => static fn (): bool => current_user_can('edit_posts'),
+				],
 			]
 		);
 
@@ -84,6 +119,34 @@ final class Controller {
 			'available' => Client::is_available(),
 			'providers' => Client::get_providers(),
 		];
+	}
+
+	/**
+	 * @return array<int, array<string, mixed>>
+	 */
+	public static function get_templates(): array {
+		return TemplateSettings::all();
+	}
+
+	/**
+	 * @return array<string, mixed>|\WP_Error
+	 */
+	public static function create_template(WP_REST_Request $request) {
+		return TemplateSettings::create(self::get_request_params($request));
+	}
+
+	/**
+	 * @return array<string, mixed>|\WP_Error
+	 */
+	public static function update_template(WP_REST_Request $request) {
+		return TemplateSettings::update((string) $request['id'], self::get_request_params($request));
+	}
+
+	/**
+	 * @return array<string, mixed>|\WP_Error
+	 */
+	public static function delete_template(WP_REST_Request $request) {
+		return TemplateSettings::delete((string) $request['id']);
 	}
 
 	/**

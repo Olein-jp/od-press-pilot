@@ -23,6 +23,10 @@
 	align-items: start;
 }
 
+.od-press-pilot__layout--templates {
+	grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+}
+
 .od-press-pilot .components-panel__body {
 	border-top: 0;
 	border-bottom: 0;
@@ -61,6 +65,43 @@
 
 .od-press-pilot__translation-options .components-base-control {
 	min-height: 24px;
+}
+
+.od-press-pilot__template-picker {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 12px;
+	align-items: end;
+	margin-bottom: 18px;
+}
+
+.od-press-pilot__template-list-header {
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 16px;
+}
+
+.od-press-pilot__template-list-header h2 {
+	margin: 0;
+	font-size: 16px;
+	line-height: 1.4;
+}
+
+.od-press-pilot__template-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	align-items: stretch;
+}
+
+.od-press-pilot__template-list .components-button {
+	justify-content: flex-start;
+	width: 100%;
+	min-height: 36px;
+	white-space: normal;
+	text-align: left;
 }
 
 .od-press-pilot__grid {
@@ -102,7 +143,8 @@
 @media (max-width: 960px) {
 	.od-press-pilot__layout,
 	.od-press-pilot__grid,
-	.od-press-pilot__result-field {
+	.od-press-pilot__result-field,
+	.od-press-pilot__template-picker {
 		grid-template-columns: 1fr;
 	}
 

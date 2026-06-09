@@ -14,8 +14,9 @@ if (! defined('ABSPATH')) {
 }
 
 final class Admin {
-	private const MENU_SLUG    = 'od-press-pilot';
-	private const PROFILE_SLUG = 'od-press-pilot-profile';
+	private const MENU_SLUG      = 'od-press-pilot';
+	private const PROFILE_SLUG   = 'od-press-pilot-profile';
+	private const TEMPLATES_SLUG = 'od-press-pilot-templates';
 
 	public static function init(): void {
 		add_action('admin_menu', [self::class, 'register_menu']);
@@ -50,12 +51,21 @@ final class Admin {
 			self::PROFILE_SLUG,
 			[self::class, 'render_page']
 		);
+
+		add_submenu_page(
+			self::MENU_SLUG,
+			__('テンプレート', 'od-press-pilot'),
+			__('テンプレート', 'od-press-pilot'),
+			'edit_posts',
+			self::TEMPLATES_SLUG,
+			[self::class, 'render_page']
+		);
 	}
 
 	public static function enqueue_assets(string $hook_suffix): void {
 		$page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
 
-		if (! in_array($page, [self::MENU_SLUG, self::PROFILE_SLUG], true)) {
+		if (! in_array($page, [self::MENU_SLUG, self::PROFILE_SLUG, self::TEMPLATES_SLUG], true)) {
 			return;
 		}
 
@@ -84,12 +94,24 @@ final class Admin {
 			'odPressPilot',
 			[
 				'restNamespace' => OD_PRESS_PILOT_REST_NAMESPACE,
-				'page'          => self::PROFILE_SLUG === $page ? 'profile' : 'generate',
+				'page'          => self::page_key($page),
 			]
 		);
 	}
 
 	public static function render_page(): void {
 		echo '<div class="wrap"><div id="od-press-pilot-admin"></div></div>';
+	}
+
+	private static function page_key(string $page): string {
+		if (self::PROFILE_SLUG === $page) {
+			return 'profile';
+		}
+
+		if (self::TEMPLATES_SLUG === $page) {
+			return 'templates';
+		}
+
+		return 'generate';
 	}
 }

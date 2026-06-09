@@ -7,6 +7,7 @@ import {
 	CardBody,
 	CheckboxControl,
 	ExternalLink,
+	Modal,
 	Notice,
 	PanelBody,
 	SelectControl,
@@ -152,6 +153,17 @@ const defaultResult = {
 	hashtags: [],
 };
 
+const defaultGenerationForm = {
+	post_content: '',
+	audience: '',
+	desired_length: '',
+	translation_languages: [],
+	custom_translation_language: '',
+	use_emoji: false,
+	generate_hashtags: true,
+	provider: 'auto',
+};
+
 const translationLanguageOptions = [
 	{ label: __( '英語', 'od-press-pilot' ), value: 'en' },
 	{ label: __( '中国語（簡体字）', 'od-press-pilot' ), value: 'zh-hans' },
@@ -172,6 +184,102 @@ function normalizeResult( response ) {
 		x_text: response?.x_text || response?.sns_summary || '',
 		translated_x_texts: Array.isArray( response?.translated_x_texts ) ? response.translated_x_texts : [],
 	};
+}
+
+function normalizeGenerationForm( input = {}, providerOptions = [] ) {
+	const providerValues = providerOptions.map( ( option ) => option.value );
+	const provider = input.provider || defaultGenerationForm.provider;
+
+	return {
+		...defaultGenerationForm,
+		post_content: input.post_content || '',
+		audience: input.audience || '',
+		desired_length: input.desired_length ? String( input.desired_length ) : '',
+		translation_languages: Array.isArray( input.translation_languages ) ? input.translation_languages : [],
+		custom_translation_language: input.custom_translation_language || '',
+		use_emoji: Boolean( input.use_emoji ),
+		generate_hashtags: input.generate_hashtags !== undefined ? Boolean( input.generate_hashtags ) : defaultGenerationForm.generate_hashtags,
+		provider: providerValues.length && ! providerValues.includes( provider ) ? 'auto' : provider,
+	};
+}
+
+function GenerationFields( { form, onChange, providerOptions, includeName = false } ) {
+	const updateTranslationLanguages = ( language, isChecked ) => {
+		const nextLanguages = isChecked
+			? Array.from( new Set( [ ...form.translation_languages, language ] ) )
+			: form.translation_languages.filter( ( currentLanguage ) => currentLanguage !== language );
+
+		onChange( 'translation_languages', nextLanguages );
+	};
+
+	return (
+		<div className="od-press-pilot__form-stack">
+			{ includeName && (
+				<TextControl
+					label={ __( 'テンプレート名', 'od-press-pilot' ) }
+					value={ form.name || '' }
+					required
+					onChange={ ( value ) => onChange( 'name', value ) }
+				/>
+			) }
+			<TextareaControl
+				label={ __( '投稿内容', 'od-press-pilot' ) }
+				value={ form.post_content }
+				rows={ 10 }
+				required
+				onChange={ ( value ) => onChange( 'post_content', value ) }
+			/>
+			<TextareaControl
+				label={ __( '対象読者', 'od-press-pilot' ) }
+				value={ form.audience }
+				rows={ 4 }
+				onChange={ ( value ) => onChange( 'audience', value ) }
+			/>
+			<TextControl
+				type="number"
+				label={ __( '希望文字数', 'od-press-pilot' ) }
+				value={ form.desired_length }
+				onChange={ ( value ) => onChange( 'desired_length', value ) }
+			/>
+			<fieldset className="od-press-pilot__translation-control">
+				<legend>{ __( '翻訳言語', 'od-press-pilot' ) }</legend>
+				<div className="od-press-pilot__translation-options">
+					{ translationLanguageOptions.map( ( option ) => (
+						<CheckboxControl
+							key={ option.value }
+							label={ option.label }
+							checked={ form.translation_languages.includes( option.value ) }
+							onChange={ ( value ) => updateTranslationLanguages( option.value, value ) }
+						/>
+					) ) }
+				</div>
+			</fieldset>
+			{ form.translation_languages.includes( 'custom' ) && (
+				<TextControl
+					label={ __( 'カスタム翻訳言語', 'od-press-pilot' ) }
+					placeholder={ __( '例: フランス語、スペイン語、ベトナム語', 'od-press-pilot' ) }
+					value={ form.custom_translation_language }
+					onChange={ ( value ) => onChange( 'custom_translation_language', value ) }
+				/>
+			) }
+			<CheckboxControl
+				label={ __( '絵文字を利用する', 'od-press-pilot' ) }
+				checked={ form.use_emoji }
+				onChange={ ( value ) => onChange( 'use_emoji', value ) }
+			/>
+			<CheckboxControl
+				label={ __( 'ハッシュタグを生成する', 'od-press-pilot' ) }
+				checked={ form.generate_hashtags }
+				onChange={ ( value ) => onChange( 'generate_hashtags', value ) }
+			/>
+			<SelectControl
+				label={ __( 'AI Provider', 'od-press-pilot' ) }
+				value={ form.provider }
+				options={ providerOptions }
+				onChange={ ( value ) => onChange( 'provider', value ) }
+			/>
+		</div>
+	);
 }
 
 function ProfilePage() {
@@ -329,19 +437,15 @@ function ProfilePage() {
 
 function GeneratePage() {
 	const [ providers, setProviders ] = useState( { available: false, providers: [] } );
-	const [ form, setForm ] = useState( {
-		post_content: '',
-		audience: '',
-		desired_length: '',
-		translation_languages: [],
-		custom_translation_language: '',
-		use_emoji: false,
-		generate_hashtags: true,
-		provider: 'auto',
-	} );
+	const [ templates, setTemplates ] = useState( [] );
+	const [ selectedTemplateId, setSelectedTemplateId ] = useState( '' );
+	const [ form, setForm ] = useState( defaultGenerationForm );
 	const [ result, setResult ] = useState( null );
 	const [ isGenerating, setIsGenerating ] = useState( false );
 	const [ isDrafting, setIsDrafting ] = useState( false );
+	const [ isSavingTemplate, setIsSavingTemplate ] = useState( false );
+	const [ isSaveTemplateOpen, setIsSaveTemplateOpen ] = useState( false );
+	const [ saveTemplateName, setSaveTemplateName ] = useState( '' );
 	const [ notice, setNotice ] = useState( null );
 
 	useEffect( () => {
@@ -355,6 +459,12 @@ function GeneratePage() {
 			);
 	}, [] );
 
+	useEffect( () => {
+		apiFetch( { path: `/${ namespace }/templates` } )
+			.then( ( response ) => setTemplates( Array.isArray( response ) ? response : [] ) )
+			.catch( () => setTemplates( [] ) );
+	}, [] );
+
 	const providerOptions = useMemo(
 		() =>
 			providers.providers.length
@@ -365,12 +475,50 @@ function GeneratePage() {
 
 	const updateForm = ( key, value ) => setForm( { ...form, [ key ]: value } );
 	const updateResult = ( key, value ) => setResult( { ...result, [ key ]: value } );
-	const updateTranslationLanguages = ( language, isChecked ) => {
-		const nextLanguages = isChecked
-			? Array.from( new Set( [ ...form.translation_languages, language ] ) )
-			: form.translation_languages.filter( ( currentLanguage ) => currentLanguage !== language );
+	const templateOptions = [
+		{ label: __( 'テンプレートを選択', 'od-press-pilot' ), value: '' },
+		...templates.map( ( template ) => ( { label: template.name, value: template.id } ) ),
+	];
 
-		updateForm( 'translation_languages', nextLanguages );
+	const applyTemplate = () => {
+		const template = templates.find( ( currentTemplate ) => currentTemplate.id === selectedTemplateId );
+
+		if ( ! template ) {
+			return;
+		}
+
+		setForm( normalizeGenerationForm( template, providerOptions ) );
+		setNotice( { status: 'success', message: __( 'テンプレートを生成条件に反映しました。', 'od-press-pilot' ) } );
+	};
+
+	const saveCurrentTemplate = async () => {
+		if ( ! saveTemplateName.trim() ) {
+			setNotice( { status: 'error', message: __( 'テンプレート名を入力してください。', 'od-press-pilot' ) } );
+			return;
+		}
+
+		setIsSavingTemplate( true );
+		setNotice( null );
+
+		try {
+			const response = await apiFetch( {
+				path: `/${ namespace }/templates`,
+				method: 'POST',
+				data: {
+					...form,
+					name: saveTemplateName,
+				},
+			} );
+			setTemplates( [ ...templates, response ] );
+			setSelectedTemplateId( response.id );
+			setSaveTemplateName( '' );
+			setIsSaveTemplateOpen( false );
+			setNotice( { status: 'success', message: __( 'テンプレートを保存しました。', 'od-press-pilot' ) } );
+		} catch ( error ) {
+			setNotice( { status: 'error', message: getErrorMessage( error, __( 'テンプレートの保存に失敗しました。', 'od-press-pilot' ) ) } );
+		} finally {
+			setIsSavingTemplate( false );
+		}
 	};
 
 	const generate = async () => {
@@ -448,67 +596,24 @@ function GeneratePage() {
 				<Card>
 					<CardBody>
 						<PanelBody title={ __( '生成条件', 'od-press-pilot' ) } initialOpen>
-							<div className="od-press-pilot__form-stack">
-								<TextareaControl
-									label={ __( '投稿内容', 'od-press-pilot' ) }
-									value={ form.post_content }
-									rows={ 10 }
-									required
-									onChange={ ( value ) => updateForm( 'post_content', value ) }
-								/>
-								<TextareaControl
-									label={ __( '対象読者', 'od-press-pilot' ) }
-									value={ form.audience }
-									rows={ 4 }
-									onChange={ ( value ) => updateForm( 'audience', value ) }
-								/>
-								<TextControl
-									type="number"
-									label={ __( '希望文字数', 'od-press-pilot' ) }
-									value={ form.desired_length }
-									onChange={ ( value ) => updateForm( 'desired_length', value ) }
-								/>
-								<fieldset className="od-press-pilot__translation-control">
-									<legend>{ __( '翻訳言語', 'od-press-pilot' ) }</legend>
-									<div className="od-press-pilot__translation-options">
-										{ translationLanguageOptions.map( ( option ) => (
-											<CheckboxControl
-												key={ option.value }
-												label={ option.label }
-												checked={ form.translation_languages.includes( option.value ) }
-												onChange={ ( value ) => updateTranslationLanguages( option.value, value ) }
-											/>
-										) ) }
-									</div>
-								</fieldset>
-								{ form.translation_languages.includes( 'custom' ) && (
-									<TextControl
-										label={ __( 'カスタム翻訳言語', 'od-press-pilot' ) }
-										placeholder={ __( '例: フランス語、スペイン語、ベトナム語', 'od-press-pilot' ) }
-										value={ form.custom_translation_language }
-										onChange={ ( value ) => updateForm( 'custom_translation_language', value ) }
-									/>
-								) }
-								<CheckboxControl
-									label={ __( '絵文字を利用する', 'od-press-pilot' ) }
-									checked={ form.use_emoji }
-									onChange={ ( value ) => updateForm( 'use_emoji', value ) }
-								/>
-								<CheckboxControl
-									label={ __( 'ハッシュタグを生成する', 'od-press-pilot' ) }
-									checked={ form.generate_hashtags }
-									onChange={ ( value ) => updateForm( 'generate_hashtags', value ) }
-								/>
+							<div className="od-press-pilot__template-picker">
 								<SelectControl
-									label={ __( 'AI Provider', 'od-press-pilot' ) }
-									value={ form.provider }
-									options={ providerOptions }
-									onChange={ ( value ) => updateForm( 'provider', value ) }
+									label={ __( '保存済みテンプレート', 'od-press-pilot' ) }
+									value={ selectedTemplateId }
+									options={ templateOptions }
+									onChange={ setSelectedTemplateId }
 								/>
+								<Button variant="secondary" onClick={ applyTemplate } disabled={ ! selectedTemplateId }>
+									{ __( '適用', 'od-press-pilot' ) }
+								</Button>
 							</div>
+							<GenerationFields form={ form } onChange={ updateForm } providerOptions={ providerOptions } />
 							<div className="od-press-pilot__actions">
 								<Button variant="primary" onClick={ generate } isBusy={ isGenerating } disabled={ isGenerating || ! form.post_content }>
 									{ __( '生成', 'od-press-pilot' ) }
+								</Button>
+								<Button variant="secondary" onClick={ () => setIsSaveTemplateOpen( true ) }>
+									{ __( 'テンプレートに保存する', 'od-press-pilot' ) }
 								</Button>
 							</div>
 						</PanelBody>
@@ -524,6 +629,203 @@ function GeneratePage() {
 					isGenerating={ isGenerating }
 					isDrafting={ isDrafting }
 				/>
+			</div>
+			{ isSaveTemplateOpen && (
+				<Modal
+					title={ __( 'テンプレートに保存', 'od-press-pilot' ) }
+					onRequestClose={ () => setIsSaveTemplateOpen( false ) }
+				>
+					<TextControl
+						label={ __( 'テンプレート名', 'od-press-pilot' ) }
+						value={ saveTemplateName }
+						required
+						onChange={ setSaveTemplateName }
+					/>
+					<div className="od-press-pilot__actions">
+						<Button variant="primary" onClick={ saveCurrentTemplate } isBusy={ isSavingTemplate } disabled={ isSavingTemplate || ! saveTemplateName.trim() }>
+							{ __( '保存', 'od-press-pilot' ) }
+						</Button>
+						<Button variant="secondary" onClick={ () => setIsSaveTemplateOpen( false ) } disabled={ isSavingTemplate }>
+							{ __( 'キャンセル', 'od-press-pilot' ) }
+						</Button>
+					</div>
+				</Modal>
+			) }
+		</div>
+	);
+}
+
+function TemplatesPage() {
+	const [ providers, setProviders ] = useState( { available: false, providers: [] } );
+	const [ templates, setTemplates ] = useState( [] );
+	const [ selectedTemplateId, setSelectedTemplateId ] = useState( '' );
+	const [ draft, setDraft ] = useState( { ...defaultGenerationForm, name: '' } );
+	const [ isLoading, setIsLoading ] = useState( true );
+	const [ isSaving, setIsSaving ] = useState( false );
+	const [ isDeleting, setIsDeleting ] = useState( false );
+	const [ notice, setNotice ] = useState( null );
+
+	useEffect( () => {
+		apiFetch( { path: `/${ namespace }/providers` } )
+			.then( setProviders )
+			.catch( () =>
+				setProviders( {
+					available: false,
+					providers: [ { id: 'auto', label: __( 'AI Client 自動選択', 'od-press-pilot' ) } ],
+				} )
+			);
+
+		apiFetch( { path: `/${ namespace }/templates` } )
+			.then( ( response ) => setTemplates( Array.isArray( response ) ? response : [] ) )
+			.catch( ( error ) =>
+				setNotice( {
+					status: 'error',
+					message: getErrorMessage( error, __( 'テンプレートを取得できませんでした。', 'od-press-pilot' ) ),
+				} )
+			)
+			.finally( () => setIsLoading( false ) );
+	}, [] );
+
+	const providerOptions = useMemo(
+		() =>
+			providers.providers.length
+				? providers.providers.map( ( provider ) => ( { label: provider.label, value: provider.id } ) )
+				: [ { label: __( 'AI Client 自動選択', 'od-press-pilot' ), value: 'auto' } ],
+		[ providers.providers ]
+	);
+
+	const selectTemplate = ( template ) => {
+		setSelectedTemplateId( template.id );
+		setDraft( {
+			...normalizeGenerationForm( template, providerOptions ),
+			id: template.id,
+			name: template.name || '',
+		} );
+		setNotice( null );
+	};
+
+	const createNewTemplate = () => {
+		setSelectedTemplateId( '' );
+		setDraft( { ...defaultGenerationForm, name: '' } );
+		setNotice( null );
+	};
+
+	const updateDraft = ( key, value ) => setDraft( { ...draft, [ key ]: value } );
+
+	const saveTemplate = async () => {
+		if ( ! draft.name.trim() ) {
+			setNotice( { status: 'error', message: __( 'テンプレート名を入力してください。', 'od-press-pilot' ) } );
+			return;
+		}
+
+		setIsSaving( true );
+		setNotice( null );
+
+		try {
+			const response = await apiFetch( {
+				path: selectedTemplateId ? `/${ namespace }/templates/${ selectedTemplateId }` : `/${ namespace }/templates`,
+				method: selectedTemplateId ? 'PUT' : 'POST',
+				data: draft,
+			} );
+			const nextTemplates = selectedTemplateId
+				? templates.map( ( template ) => ( template.id === response.id ? response : template ) )
+				: [ ...templates, response ];
+
+			setTemplates( nextTemplates );
+			setSelectedTemplateId( response.id );
+			setDraft( {
+				...normalizeGenerationForm( response, providerOptions ),
+				id: response.id,
+				name: response.name || '',
+			} );
+			setNotice( { status: 'success', message: __( 'テンプレートを保存しました。', 'od-press-pilot' ) } );
+		} catch ( error ) {
+			setNotice( { status: 'error', message: getErrorMessage( error, __( 'テンプレートの保存に失敗しました。', 'od-press-pilot' ) ) } );
+		} finally {
+			setIsSaving( false );
+		}
+	};
+
+	const deleteTemplate = async () => {
+		if ( ! selectedTemplateId || ! window.confirm( __( 'このテンプレートを削除しますか？', 'od-press-pilot' ) ) ) {
+			return;
+		}
+
+		setIsDeleting( true );
+		setNotice( null );
+
+		try {
+			const response = await apiFetch( {
+				path: `/${ namespace }/templates/${ selectedTemplateId }`,
+				method: 'DELETE',
+			} );
+			setTemplates( Array.isArray( response.templates ) ? response.templates : templates.filter( ( template ) => template.id !== selectedTemplateId ) );
+			createNewTemplate();
+			setNotice( { status: 'success', message: __( 'テンプレートを削除しました。', 'od-press-pilot' ) } );
+		} catch ( error ) {
+			setNotice( { status: 'error', message: getErrorMessage( error, __( 'テンプレートの削除に失敗しました。', 'od-press-pilot' ) ) } );
+		} finally {
+			setIsDeleting( false );
+		}
+	};
+
+	if ( isLoading ) {
+		return <Spinner />;
+	}
+
+	return (
+		<div className="od-press-pilot">
+			<header className="od-press-pilot__header">
+				<h1>{ __( 'テンプレート', 'od-press-pilot' ) }</h1>
+			</header>
+			{ notice && (
+				<Notice status={ notice.status } onRemove={ () => setNotice( null ) }>
+					{ notice.message }
+				</Notice>
+			) }
+			<div className="od-press-pilot__layout od-press-pilot__layout--templates">
+				<Card>
+					<CardBody>
+						<div className="od-press-pilot__template-list-header">
+							<h2>{ __( '保存済みテンプレート', 'od-press-pilot' ) }</h2>
+							<Button variant="secondary" onClick={ createNewTemplate }>
+								{ __( '新規作成', 'od-press-pilot' ) }
+							</Button>
+						</div>
+						{ templates.length ? (
+							<div className="od-press-pilot__template-list">
+								{ templates.map( ( template ) => (
+									<Button
+										key={ template.id }
+										variant={ selectedTemplateId === template.id ? 'primary' : 'tertiary' }
+										onClick={ () => selectTemplate( template ) }
+									>
+										{ template.name }
+									</Button>
+								) ) }
+							</div>
+						) : (
+							<p className="od-press-pilot__empty">{ __( '保存済みテンプレートはありません。', 'od-press-pilot' ) }</p>
+						) }
+					</CardBody>
+				</Card>
+				<Card>
+					<CardBody>
+						<PanelBody title={ selectedTemplateId ? __( 'テンプレート編集', 'od-press-pilot' ) : __( 'テンプレート新規作成', 'od-press-pilot' ) } initialOpen>
+							<GenerationFields form={ draft } onChange={ updateDraft } providerOptions={ providerOptions } includeName />
+							<div className="od-press-pilot__actions">
+								<Button variant="primary" onClick={ saveTemplate } isBusy={ isSaving } disabled={ isSaving || ! draft.name.trim() }>
+									{ __( '保存', 'od-press-pilot' ) }
+								</Button>
+								{ selectedTemplateId && (
+									<Button variant="secondary" isDestructive onClick={ deleteTemplate } isBusy={ isDeleting } disabled={ isDeleting }>
+										{ __( '削除', 'od-press-pilot' ) }
+									</Button>
+								) }
+							</div>
+						</PanelBody>
+					</CardBody>
+				</Card>
 			</div>
 		</div>
 	);
@@ -619,4 +921,16 @@ function ResultPanel( { result, hashtagsText, updateResult, copyText, generate, 
 	);
 }
 
-render( currentPage === 'profile' ? <ProfilePage /> : <GeneratePage />, document.getElementById( 'od-press-pilot-admin' ) );
+function App() {
+	if ( currentPage === 'profile' ) {
+		return <ProfilePage />;
+	}
+
+	if ( currentPage === 'templates' ) {
+		return <TemplatesPage />;
+	}
+
+	return <GeneratePage />;
+}
+
+render( <App />, document.getElementById( 'od-press-pilot-admin' ) );

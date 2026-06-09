@@ -33,6 +33,7 @@ if (file_exists($od_press_pilot_autoload)) {
 }
 
 require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/Settings/ProfileSettings.php';
+require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/Settings/TemplateSettings.php';
 require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/AI/PromptBuilder.php';
 require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/AI/ResponseParser.php';
 require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/AI/Client.php';
