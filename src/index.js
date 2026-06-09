@@ -261,6 +261,12 @@ function ProfilePage() {
 
 		return (
 			<div className="od-press-pilot__template">
+				<p className="od-press-pilot__template-description">
+					{ __(
+						'このテンプレートをコピーして AI に貼り付け、事業情報を入力すると、広報プロフィールへ転記しやすい文章を作成できます。',
+						'od-press-pilot'
+					) }
+				</p>
 				<TextareaControl
 					label={ __( 'プロンプトテンプレート', 'od-press-pilot' ) }
 					value={ profilePromptTemplate }
