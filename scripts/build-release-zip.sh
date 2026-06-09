@@ -38,8 +38,6 @@ rsync -a \
 	--include='/build/***' \
 	--include='/src/***' \
 	--include='/vendor/***' \
-	--include='/composer.json' \
-	--include='/composer.lock' \
 	--include='/od-press-pilot.php' \
 	--include='/readme.txt' \
 	--include='/README.md' \
