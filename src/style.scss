@@ -12,6 +12,10 @@
 	line-height: 1.3;
 }
 
+.od-press-pilot .components-notice {
+	margin-bottom: 16px;
+}
+
 .od-press-pilot__layout {
 	display: grid;
 	grid-template-columns: minmax(320px, 440px) minmax(0, 1fr);

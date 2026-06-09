@@ -35,6 +35,114 @@ const profileFields = [
 	[ 'hashtag_policy', __( 'ハッシュタグ方針', 'od-press-pilot' ), 'textarea' ],
 ];
 
+const profilePromptTemplate = `あなたは中小企業・店舗・地域事業者の広報プロフィールを整理する編集者です。
+以下の事業情報をもとに、WordPressプラグイン「OD Press Pilot」の広報プロフィール欄へ貼り付ける情報を作成してください。
+
+目的:
+今後のお知らせ文、SNS投稿、メタディスクリプション、ハッシュタグ生成に使うため、事業者らしさが安定して反映される広報プロフィールを作る。
+
+重要なルール:
+- 入力情報にない事実は追加しないでください。
+- 不明な内容は推測せず、「未記入」または「確認が必要」としてください。
+- 誇大表現、断定的すぎる表現、根拠のないNo.1表現は避けてください。
+- 実際のお知らせ文に使いやすい、自然で具体的な日本語にしてください。
+- 各項目はそのまま管理画面へ貼り付けられる文章にしてください。
+- 専門用語が必要な場合は、一般読者にも伝わる表現にしてください。
+- 出力は下記の項目名ごとに分けてください。
+
+事業情報:
+【事業者名】
+（ここに入力）
+
+【サービス名】
+（ここに入力）
+
+【WebサイトURL】
+（ここに入力）
+
+【事業内容】
+（ここに入力）
+
+【主な商品・サービス】
+（ここに入力）
+
+【対象顧客】
+（ここに入力）
+
+【対応エリア】
+（ここに入力）
+
+【強み・特徴】
+（ここに入力）
+
+【理念・大切にしていること】
+（ここに入力）
+
+【よく使う表現・キャッチコピー】
+（ここに入力）
+
+【避けたい表現・言い回し】
+（ここに入力）
+
+【SNSの雰囲気】
+例: 丁寧、親しみやすい、専門的、やわらかい、落ち着いた雰囲気 など
+
+【問い合わせ・予約・購入などの導線】
+（ここに入力）
+
+作成してほしい項目:
+1. 事業者名
+2. サービス名
+3. サービス概要
+4. ターゲット顧客
+5. 強み・特徴
+6. 会社理念・想い
+7. よく使うキャッチコピー
+8. NG表現
+9. よく使うCTA
+10. SNS運用方針
+11. ハッシュタグ方針
+12. 追加指示
+
+出力形式:
+各項目を以下の形式で出力してください。
+
+## 事業者名
+...
+
+## サービス名
+...
+
+## サービス概要
+...
+
+## ターゲット顧客
+...
+
+## 強み・特徴
+...
+
+## 会社理念・想い
+...
+
+## よく使うキャッチコピー
+...
+
+## NG表現
+...
+
+## よく使うCTA
+...
+
+## SNS運用方針
+...
+
+## ハッシュタグ方針
+...
+
+## 追加指示
+...`;
+
 const defaultResult = {
 	title: '',
 	notice: '',
@@ -59,6 +167,7 @@ function getErrorMessage( error, fallback ) {
 
 function ProfilePage() {
 	const [ profile, setProfile ] = useState( null );
+	const [ activeProfileTab, setActiveProfileTab ] = useState( 'basic' );
 	const [ isSaving, setIsSaving ] = useState( false );
 	const [ notice, setNotice ] = useState( null );
 
@@ -74,6 +183,11 @@ function ProfilePage() {
 	}, [] );
 
 	const updateProfile = ( key, value ) => setProfile( { ...profile, [ key ]: value } );
+
+	const copyPromptTemplate = async () => {
+		await window.navigator.clipboard.writeText( profilePromptTemplate );
+		setNotice( { status: 'success', message: __( 'プロンプトテンプレートをコピーしました。', 'od-press-pilot' ) } );
+	};
 
 	const saveProfile = async () => {
 		setIsSaving( true );
@@ -98,6 +212,70 @@ function ProfilePage() {
 		return <Spinner />;
 	}
 
+	const renderProfileTab = ( tab ) => {
+		if ( tab.name === 'basic' ) {
+			return (
+				<div className="od-press-pilot__grid">
+					{ profileFields.map( ( [ key, label, type ] ) =>
+						type === 'textarea' ? (
+							<TextareaControl
+								key={ key }
+								label={ label }
+								value={ profile[ key ] || '' }
+								onChange={ ( value ) => updateProfile( key, value ) }
+							/>
+						) : (
+							<TextControl
+								key={ key }
+								label={ label }
+								value={ profile[ key ] || '' }
+								onChange={ ( value ) => updateProfile( key, value ) }
+							/>
+						)
+					) }
+					<SelectControl
+						label={ __( '文章トーン', 'od-press-pilot' ) }
+						value={ profile.tone || '丁寧' }
+						options={ [
+							{ label: '丁寧', value: '丁寧' },
+							{ label: 'カジュアル', value: 'カジュアル' },
+							{ label: '親しみやすい', value: '親しみやすい' },
+							{ label: 'フォーマル', value: 'フォーマル' },
+						] }
+						onChange={ ( value ) => updateProfile( 'tone', value ) }
+					/>
+				</div>
+			);
+		}
+
+		if ( tab.name === 'notes' ) {
+			return (
+				<TextareaControl
+					label={ __( '追加指示', 'od-press-pilot' ) }
+					value={ profile.additional_notes || '' }
+					rows={ 12 }
+					onChange={ ( value ) => updateProfile( 'additional_notes', value ) }
+				/>
+			);
+		}
+
+		return (
+			<div className="od-press-pilot__template">
+				<TextareaControl
+					label={ __( 'プロンプトテンプレート', 'od-press-pilot' ) }
+					value={ profilePromptTemplate }
+					rows={ 28 }
+					readOnly
+				/>
+				<div className="od-press-pilot__actions">
+					<Button variant="secondary" onClick={ copyPromptTemplate }>
+						{ __( 'コピー', 'od-press-pilot' ) }
+					</Button>
+				</div>
+			</div>
+		);
+	};
+
 	return (
 		<div className="od-press-pilot">
 			<header className="od-press-pilot__header">
@@ -112,58 +290,22 @@ function ProfilePage() {
 				<CardBody>
 					<TabPanel
 						className="od-press-pilot__tabs"
+						onSelect={ setActiveProfileTab }
 						tabs={ [
 							{ name: 'basic', title: __( '基本プロフィール', 'od-press-pilot' ) },
 							{ name: 'notes', title: __( '追加指示', 'od-press-pilot' ) },
+							{ name: 'prompt-template', title: __( 'プロンプトテンプレート', 'od-press-pilot' ) },
 						] }
 					>
-						{ ( tab ) =>
-							tab.name === 'basic' ? (
-								<div className="od-press-pilot__grid">
-									{ profileFields.map( ( [ key, label, type ] ) =>
-										type === 'textarea' ? (
-											<TextareaControl
-												key={ key }
-												label={ label }
-												value={ profile[ key ] || '' }
-												onChange={ ( value ) => updateProfile( key, value ) }
-											/>
-										) : (
-											<TextControl
-												key={ key }
-												label={ label }
-												value={ profile[ key ] || '' }
-												onChange={ ( value ) => updateProfile( key, value ) }
-											/>
-										)
-									) }
-									<SelectControl
-										label={ __( '文章トーン', 'od-press-pilot' ) }
-										value={ profile.tone || '丁寧' }
-										options={ [
-											{ label: '丁寧', value: '丁寧' },
-											{ label: 'カジュアル', value: 'カジュアル' },
-											{ label: '親しみやすい', value: '親しみやすい' },
-											{ label: 'フォーマル', value: 'フォーマル' },
-										] }
-										onChange={ ( value ) => updateProfile( 'tone', value ) }
-									/>
-								</div>
-							) : (
-								<TextareaControl
-									label={ __( '追加指示', 'od-press-pilot' ) }
-									value={ profile.additional_notes || '' }
-									rows={ 12 }
-									onChange={ ( value ) => updateProfile( 'additional_notes', value ) }
-								/>
-							)
-						}
+						{ renderProfileTab }
 					</TabPanel>
-					<div className="od-press-pilot__actions">
-						<Button variant="primary" onClick={ saveProfile } isBusy={ isSaving } disabled={ isSaving }>
-							{ __( '保存', 'od-press-pilot' ) }
-						</Button>
-					</div>
+					{ activeProfileTab !== 'prompt-template' && (
+						<div className="od-press-pilot__actions">
+							<Button variant="primary" onClick={ saveProfile } isBusy={ isSaving } disabled={ isSaving }>
+								{ __( '保存', 'od-press-pilot' ) }
+							</Button>
+						</div>
+					) }
 				</CardBody>
 			</Card>
 		</div>
