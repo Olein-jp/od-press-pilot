@@ -28,7 +28,7 @@ final class PromptBuilder {
 		$length       = ! empty($request['desired_length']) ? (string) absint($request['desired_length']) . '文字程度' : '指定なし';
 
 		return sprintf(
-			"あなたは、この事業者専属の広報担当者です。\n\n事業者プロフィール:\n%s\n\n追加指示:\n%s\n\n今回のお知らせ内容:\n%s\n\n対象読者:\n%s\n\n希望文字数:\n%s\n\n翻訳言語:\n%s\n\n絵文字利用:\n%s\n\nハッシュタグ生成:\n%s\n\nルール:\n- 事実を勝手に追加しない\n- 不明な情報は推測しない\n- 誇大表現を避ける\n- ターゲットに合わせる\n- 事業者らしい文章にする\n- メインコンテンツはWordPressブロックエディターへ貼り付け可能な形式で出力する\n- すべて日本語で出力する\n- 指定された翻訳言語がある場合のみ翻訳版を出力する\n- 翻訳言語が複数ある場合、sns_summary_translated には言語名ごとに見出しを付けてすべての翻訳を含める\n- JSON以外の文字を出力しない\n\nJSON Schema:\n%s",
+			"あなたは、この事業者専属の広報担当者です。\n\n事業者プロフィール:\n%s\n\n追加指示:\n%s\n\n今回のお知らせ内容:\n%s\n\n対象読者:\n%s\n\n希望文字数:\n%s\n\n翻訳言語:\n%s\n\n絵文字利用:\n%s\n\nハッシュタグ生成:\n%s\n\nルール:\n- 事実を勝手に追加しない\n- 不明な情報は推測しない\n- 誇大表現を避ける\n- ターゲットに合わせる\n- 事業者らしい文章にする\n- メインコンテンツはWordPressブロックエディターへ貼り付け可能な形式で出力する\n- title、notice、meta_description、hashtags は日本語で出力する\n- x_text は X にそのまま貼り付けられる日本語テキストとして、必ず280文字以内で出力する\n- 指定された翻訳言語がある場合のみ translated_x_texts を出力する\n- translated_x_texts は翻訳言語ごとに1件ずつ分け、language には翻訳言語名、text には X に貼り付けられる280文字以内の翻訳テキストだけを入れる\n- 翻訳テキストの本文に言語名や見出しを含めない\n- 翻訳言語がない場合、translated_x_texts は空配列にする\n- JSON以外の文字を出力しない\n\nJSON Schema:\n%s",
 			$profile_text,
 			$profile['additional_notes'],
 			(string) ($request['post_content'] ?? ''),
@@ -52,15 +52,25 @@ final class PromptBuilder {
 			'properties' => [
 				'title'                  => ['type' => 'string'],
 				'notice'                 => ['type' => 'string'],
-				'sns_summary'            => ['type' => 'string'],
-				'sns_summary_translated' => ['type' => 'string'],
+				'x_text'                 => ['type' => 'string'],
+				'translated_x_texts'     => [
+					'type'  => 'array',
+					'items' => [
+						'type'       => 'object',
+						'properties' => [
+							'language' => ['type' => 'string'],
+							'text'     => ['type' => 'string'],
+						],
+						'required'   => ['language', 'text'],
+					],
+				],
 				'meta_description'       => ['type' => 'string'],
 				'hashtags'               => [
 					'type'  => 'array',
 					'items' => ['type' => 'string'],
 				],
 			],
-			'required'   => ['title', 'notice', 'sns_summary', 'sns_summary_translated', 'meta_description', 'hashtags'],
+			'required'   => ['title', 'notice', 'x_text', 'translated_x_texts', 'meta_description', 'hashtags'],
 		];
 	}
 

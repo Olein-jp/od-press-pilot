@@ -17,6 +17,9 @@ if (! defined('ABSPATH')) {
 }
 
 final class Client {
+	private const OPENAI_RESPONSES_ENDPOINT = 'https://api.openai.com/v1/responses';
+	private const GENERATION_HTTP_TIMEOUT   = 90;
+
 	/**
 	 * Generate content through WordPress AI Client.
 	 *
@@ -44,7 +47,21 @@ final class Client {
 			return new WP_Error('od_press_pilot_ai_unavailable', __('AI Provider が利用できません。', 'od-press-pilot'), ['status' => 503]);
 		}
 
-		$json = $builder->generate_text();
+		$timeout_filter = static function (array $args, string $url): array {
+			if (0 === strpos($url, self::OPENAI_RESPONSES_ENDPOINT)) {
+				$args['timeout'] = max((int) ($args['timeout'] ?? 0), self::GENERATION_HTTP_TIMEOUT);
+			}
+
+			return $args;
+		};
+
+		add_filter('http_request_args', $timeout_filter, 10, 2);
+
+		try {
+			$json = $builder->generate_text();
+		} finally {
+			remove_filter('http_request_args', $timeout_filter, 10);
+		}
 
 		if (is_wp_error($json)) {
 			self::log_generation_error($json);
@@ -52,7 +69,79 @@ final class Client {
 			return self::create_generation_error($json);
 		}
 
-		return ResponseParser::parse((string) $json);
+		$parsed = ResponseParser::parse((string) $json);
+
+		if (is_wp_error($parsed)) {
+			return $parsed;
+		}
+
+		return self::apply_requested_translation_labels($parsed, $request);
+	}
+
+	/**
+	 * Keep translated X text fields aligned to the languages selected in the UI.
+	 *
+	 * @param array<string, mixed> $parsed  Parsed AI response.
+	 * @param array<string, mixed> $request Request data.
+	 * @return array<string, mixed>
+	 */
+	private static function apply_requested_translation_labels(array $parsed, array $request): array {
+		$labels = self::requested_translation_labels(
+			$request['translation_languages'] ?? ($request['translation_language'] ?? []),
+			(string) ($request['custom_translation_language'] ?? '')
+		);
+
+		if ([] === $labels) {
+			$parsed['translated_x_texts'] = [];
+			return $parsed;
+		}
+
+		$translated_texts = is_array($parsed['translated_x_texts'] ?? null) ? array_values($parsed['translated_x_texts']) : [];
+		$aligned_texts    = [];
+
+		foreach ($labels as $index => $label) {
+			$translated_text = $translated_texts[$index] ?? [];
+
+			$aligned_texts[] = [
+				'language' => $label,
+				'text'     => is_array($translated_text) ? (string) ($translated_text['text'] ?? '') : '',
+			];
+		}
+
+		$parsed['translated_x_texts'] = $aligned_texts;
+
+		return $parsed;
+	}
+
+	/**
+	 * @param mixed $languages Requested translation languages.
+	 * @return string[]
+	 */
+	private static function requested_translation_labels($languages, string $custom_language): array {
+		$labels = [
+			'en'      => '英語',
+			'zh-hans' => '中国語（簡体字）',
+			'zh-hant' => '中国語（繁体字）',
+			'ko'      => '韓国語',
+			'ja'      => '日本語',
+			'custom'  => '' !== $custom_language ? $custom_language : 'カスタム言語',
+		];
+
+		if (! is_array($languages)) {
+			$languages = [(string) $languages];
+		}
+
+		$requested_labels = [];
+
+		foreach ($languages as $language) {
+			$language = sanitize_key((string) $language);
+
+			if (isset($labels[$language])) {
+				$requested_labels[] = $labels[$language];
+			}
+		}
+
+		return array_values(array_unique($requested_labels));
 	}
 
 	private static function log_generation_error(WP_Error $error): void {
@@ -135,7 +224,7 @@ final class Client {
 			];
 		}
 
-		if (self::contains_any($normalized, ['model_not_found', 'model not found', 'unsupported model', 'not supported'])) {
+		if (self::contains_any($normalized, ['model_not_found', 'model not found', 'no models found', 'text_generation', 'unsupported model', 'not supported'])) {
 			return [
 				'code'    => 'od_press_pilot_model_unavailable',
 				'message' => __('選択中の AI Provider またはモデルではテキスト生成を利用できません。Provider の設定を確認してください。', 'od-press-pilot') . self::format_raw_error($raw),

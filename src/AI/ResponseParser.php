@@ -31,11 +31,43 @@ final class ResponseParser {
 		return [
 			'title'                  => sanitize_text_field((string) ($data['title'] ?? '')),
 			'notice'                 => wp_kses_post((string) ($data['notice'] ?? '')),
-			'sns_summary'            => sanitize_textarea_field((string) ($data['sns_summary'] ?? '')),
-			'sns_summary_translated' => sanitize_textarea_field((string) ($data['sns_summary_translated'] ?? '')),
+			'x_text'                 => sanitize_textarea_field((string) ($data['x_text'] ?? ($data['sns_summary'] ?? ''))),
+			'translated_x_texts'     => self::sanitize_translated_x_texts($data['translated_x_texts'] ?? []),
 			'meta_description'       => sanitize_textarea_field((string) ($data['meta_description'] ?? '')),
 			'hashtags'               => self::sanitize_hashtags($data['hashtags'] ?? []),
 		];
+	}
+
+	/**
+	 * @param mixed $translated_texts Raw translated X texts.
+	 * @return array<int, array{language:string,text:string}>
+	 */
+	private static function sanitize_translated_x_texts($translated_texts): array {
+		if (! is_array($translated_texts)) {
+			return [];
+		}
+
+		$items = [];
+
+		foreach ($translated_texts as $translated_text) {
+			if (! is_array($translated_text)) {
+				continue;
+			}
+
+			$language = sanitize_text_field((string) ($translated_text['language'] ?? ''));
+			$text     = sanitize_textarea_field((string) ($translated_text['text'] ?? ''));
+
+			if ('' === $language || '' === $text) {
+				continue;
+			}
+
+			$items[] = [
+				'language' => $language,
+				'text'     => $text,
+			];
+		}
+
+		return $items;
 	}
 
 	/**

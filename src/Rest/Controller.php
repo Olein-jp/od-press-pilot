@@ -128,7 +128,7 @@ final class Controller {
 
 		return [
 			'post_content'                => sanitize_textarea_field((string) ($params['post_content'] ?? '')),
-			'audience'                    => sanitize_text_field((string) ($params['audience'] ?? '')),
+			'audience'                    => sanitize_textarea_field((string) ($params['audience'] ?? '')),
 			'desired_length'              => absint($params['desired_length'] ?? 0),
 			'translation_language'        => $translation_languages[0] ?? 'none',
 			'translation_languages'       => $translation_languages,
