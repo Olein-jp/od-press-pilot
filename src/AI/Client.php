@@ -188,6 +188,15 @@ final class Client {
 			];
 		}
 
+		if (self::contains_any($normalized, ['service unavailable', 'high demand', 'temporarily unavailable', 'overloaded', 'serverexception', 'server exception', '503'])) {
+			return [
+				'code'    => 'od_press_pilot_provider_temporarily_unavailable',
+				'message' => __('AI Provider 側が混雑している、または一時的に利用できない状態です。数分から十数分ほど時間を空けて再実行してください。別のモデルを選べる場合は、モデルを切り替えることで改善することがあります。', 'od-press-pilot') . self::format_raw_error($raw),
+				'status'  => 503,
+				'raw'     => $raw,
+			];
+		}
+
 		if (self::contains_any($normalized, ['insufficient_quota', 'quota', 'billing', 'credit', 'credits', 'balance', 'payment', 'hard_limit'])) {
 			return [
 				'code'    => 'od_press_pilot_billing_required',
