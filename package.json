@@ -11,7 +11,7 @@
     "env:destroy": "wp-env destroy",
     "env:clean": "wp-env clean all",
     "wp": "wp-env run cli wp",
-    "lint:php": "find . -path ./vendor -prune -o -path ./node_modules -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l"
+    "lint:php": "find . -path ./vendor -prune -o -path ./node_modules -prune -o -path ./.release -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l"
   },
   "devDependencies": {
     "@wordpress/env": "^10.21.0",

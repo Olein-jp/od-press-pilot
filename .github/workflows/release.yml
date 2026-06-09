@@ -1,0 +1,52 @@
+name: Release Plugin Package
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and attach plugin zip
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag points to main history
+        run: |
+          git fetch origin main:refs/remotes/origin/main --no-tags
+          tag_commit="$(git rev-list -n 1 "${GITHUB_REF_NAME}")"
+          git merge-base --is-ancestor "${tag_commit}" origin/main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build admin assets
+        run: npm run build
+
+      - name: Install Composer dependencies
+        run: composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+
+      - name: Build plugin zip
+        run: bash scripts/build-release-zip.sh "${GITHUB_REF_NAME}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: dist/od-press-pilot-${{ github.ref_name }}.zip
