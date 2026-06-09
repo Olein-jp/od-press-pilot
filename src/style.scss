@@ -135,6 +135,17 @@
 	margin-bottom: 16px;
 }
 
+.od-press-pilot__result-status {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	min-height: 32px;
+}
+
+.od-press-pilot__result-status--inline {
+	margin-bottom: 16px;
+}
+
 .od-press-pilot__empty {
 	margin: 0;
 	color: #646970;

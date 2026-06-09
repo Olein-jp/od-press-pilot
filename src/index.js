@@ -836,7 +836,14 @@ function ResultPanel( { result, hashtagsText, updateResult, copyText, generate, 
 		return (
 			<Card>
 				<CardBody>
-					<p className="od-press-pilot__empty">{ __( '生成結果がここに表示されます。', 'od-press-pilot' ) }</p>
+					<div className="od-press-pilot__result-status" aria-live="polite" aria-busy={ isGenerating }>
+						{ isGenerating && <Spinner /> }
+						<p className="od-press-pilot__empty">
+							{ isGenerating
+								? __( '生成中です。少々お待ちください。', 'od-press-pilot' )
+								: __( '生成結果がここに表示されます。', 'od-press-pilot' ) }
+						</p>
+					</div>
 				</CardBody>
 			</Card>
 		);
@@ -861,6 +868,12 @@ function ResultPanel( { result, hashtagsText, updateResult, copyText, generate, 
 		<Card>
 			<CardBody>
 				<PanelBody title={ __( '生成結果', 'od-press-pilot' ) } initialOpen>
+					{ isGenerating && (
+						<div className="od-press-pilot__result-status od-press-pilot__result-status--inline" aria-live="polite" aria-busy="true">
+							<Spinner />
+							<p className="od-press-pilot__empty">{ __( '再生成中です。完了すると内容が更新されます。', 'od-press-pilot' ) }</p>
+						</div>
+					) }
 					{ fields.map( ( [ key, label, value ] ) => (
 						<div className="od-press-pilot__result-field" key={ key }>
 							<TextareaControl
