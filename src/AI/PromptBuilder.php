@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace ODPressPilot\AI;
 
+use ODPressPilot\Generation\FieldRegistry;
+
 if (! defined('ABSPATH')) {
 	exit;
 }
@@ -26,9 +28,10 @@ final class PromptBuilder {
 		$emoji        = ! empty($request['use_emoji']) ? 'あり' : 'なし';
 		$hashtags     = ! empty($request['generate_hashtags']) ? 'あり' : 'なし';
 		$length       = ! empty($request['desired_length']) ? (string) absint($request['desired_length']) . '文字程度' : '指定なし';
+		$extra_fields = FieldRegistry::prompt_text(is_array($request['extra_fields'] ?? null) ? $request['extra_fields'] : []);
 
-		return sprintf(
-			"あなたは、この事業者専属の広報担当者です。\n\n事業者プロフィール:\n%s\n\n追加指示:\n%s\n\n今回のお知らせ内容:\n%s\n\n対象読者:\n%s\n\n希望文字数:\n%s\n\n翻訳言語:\n%s\n\n絵文字利用:\n%s\n\nハッシュタグ生成:\n%s\n\nルール:\n- 事実を勝手に追加しない\n- 不明な情報は推測しない\n- 誇大表現を避ける\n- ターゲットに合わせる\n- 事業者らしい文章にする\n- メインコンテンツはWordPressブロックエディターへ貼り付け可能な形式で出力する\n- title、notice、meta_description、hashtags は日本語で出力する\n- x_text は X にそのまま貼り付けられる日本語テキストとして、必ず280文字以内で出力する\n- 指定された翻訳言語がある場合のみ translated_x_texts を出力する\n- translated_x_texts は翻訳言語ごとに1件ずつ分け、language には翻訳言語名、text には X に貼り付けられる280文字以内の翻訳テキストだけを入れる\n- 翻訳テキストの本文に言語名や見出しを含めない\n- 翻訳言語がない場合、translated_x_texts は空配列にする\n- JSON以外の文字を出力しない\n\nJSON Schema:\n%s",
+		$prompt = sprintf(
+			"あなたは、この事業者専属の広報担当者です。\n\n事業者プロフィール:\n%s\n\n追加指示:\n%s\n\n今回のお知らせ内容:\n%s\n\n対象読者:\n%s\n\n希望文字数:\n%s\n\n翻訳言語:\n%s\n\n絵文字利用:\n%s\n\nハッシュタグ生成:\n%s%s\n\nルール:\n- 事実を勝手に追加しない\n- 不明な情報は推測しない\n- 誇大表現を避ける\n- ターゲットに合わせる\n- 事業者らしい文章にする\n- メインコンテンツはWordPressブロックエディターへ貼り付け可能な形式で出力する\n- title、notice、meta_description、hashtags は日本語で出力する\n- x_text は X にそのまま貼り付けられる日本語テキストとして、必ず280文字以内で出力する\n- 指定された翻訳言語がある場合のみ translated_x_texts を出力する\n- translated_x_texts は翻訳言語ごとに1件ずつ分け、language には翻訳言語名、text には X に貼り付けられる280文字以内の翻訳テキストだけを入れる\n- 翻訳テキストの本文に言語名や見出しを含めない\n- 翻訳言語がない場合、translated_x_texts は空配列にする\n- JSON以外の文字を出力しない\n\nJSON Schema:\n%s",
 			$profile_text,
 			$profile['additional_notes'],
 			(string) ($request['post_content'] ?? ''),
@@ -37,8 +40,18 @@ final class PromptBuilder {
 			$translation,
 			$emoji,
 			$hashtags,
+			'' === $extra_fields ? '' : "\n\n追加の生成条件:\n" . $extra_fields,
 			wp_json_encode(self::schema(), JSON_UNESCAPED_UNICODE)
 		);
+
+		/**
+		 * Filter the final prompt text before it is sent to WordPress AI Client.
+		 *
+		 * @param string                $prompt  Final prompt text.
+		 * @param array<string, mixed>  $request Sanitized generation request.
+		 * @param array<string, string> $profile Stored profile data.
+		 */
+		return (string) apply_filters('odpp_ai_prompt', $prompt, $request, $profile);
 	}
 
 	/**

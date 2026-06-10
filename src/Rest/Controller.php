@@ -11,6 +11,7 @@ namespace ODPressPilot\Rest;
 
 use ODPressPilot\AI\Client;
 use ODPressPilot\Draft\DraftCreator;
+use ODPressPilot\Generation\FieldRegistry;
 use ODPressPilot\Settings\ProfileSettings;
 use ODPressPilot\Settings\TemplateSettings;
 use WP_REST_Request;
@@ -55,6 +56,16 @@ final class Controller {
 			[
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => [self::class, 'get_usage'],
+				'permission_callback' => static fn (): bool => current_user_can('edit_posts'),
+			]
+		);
+
+		register_rest_route(
+			OD_PRESS_PILOT_REST_NAMESPACE,
+			'/generation-fields',
+			[
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => [self::class, 'get_generation_fields'],
 				'permission_callback' => static fn (): bool => current_user_can('edit_posts'),
 			]
 		);
@@ -141,6 +152,13 @@ final class Controller {
 	/**
 	 * @return array<int, array<string, mixed>>
 	 */
+	public static function get_generation_fields(): array {
+		return FieldRegistry::public_definitions();
+	}
+
+	/**
+	 * @return array<int, array<string, mixed>>
+	 */
 	public static function get_templates(): array {
 		return TemplateSettings::all();
 	}
@@ -216,6 +234,7 @@ final class Controller {
 			'use_emoji'                   => ! empty($params['use_emoji']),
 			'generate_hashtags'           => ! empty($params['generate_hashtags']),
 			'provider'                    => sanitize_key((string) ($params['provider'] ?? '')),
+			'extra_fields'                => FieldRegistry::sanitize_values($params['extra_fields'] ?? []),
 		];
 	}
 

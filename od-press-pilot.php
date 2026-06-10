@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OD Press Pilot
  * Description: AI notice writing assistant powered by the WordPress AI Client.
- * Version: 0.1.6
+ * Version: 0.1.7
  * Requires at least: 7.0
  * Requires PHP: 7.4
  * Tested up to: 7.0
@@ -18,7 +18,7 @@ if (! defined('ABSPATH')) {
 	exit;
 }
 
-define('OD_PRESS_PILOT_VERSION', '0.1.6');
+define('OD_PRESS_PILOT_VERSION', '0.1.7');
 define('OD_PRESS_PILOT_PLUGIN_FILE', __FILE__);
 define('OD_PRESS_PILOT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('OD_PRESS_PILOT_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -34,6 +34,7 @@ if (file_exists($od_press_pilot_autoload)) {
 
 require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/Settings/ProfileSettings.php';
 require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/Settings/TemplateSettings.php';
+require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/Generation/FieldRegistry.php';
 require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/AI/PromptBuilder.php';
 require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/AI/ResponseParser.php';
 require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/AI/UsageStats.php';

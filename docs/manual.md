@@ -299,6 +299,66 @@ add_filter(
 
 `id` が保存済みテンプレートや他の外部テンプレートと重複した場合、その外部テンプレートは読み込まれません。テンプレートパックを作る場合は、プラグイン固有の prefix を付けた ID を使ってください。
 
+## 外部プラグインから生成条件を追加する
+
+別プラグインから `odpp_generation_fields` フィルターを使うと、コンテンツ生成画面とテンプレート画面に入力項目を追加できます。追加された値は `extra_fields` として保存・送信され、AI に送信されるプロンプトの「追加の生成条件」に含まれます。
+
+```php
+add_filter(
+	'odpp_generation_fields',
+	static function ( array $fields ): array {
+		$fields[] = [
+			'id'           => 'campaign_type',
+			'label'        => 'キャンペーン種別',
+			'type'         => 'select',
+			'default'      => 'seasonal',
+			'options'      => [
+				[ 'label' => '季節キャンペーン', 'value' => 'seasonal' ],
+				[ 'label' => '新商品告知', 'value' => 'new_product' ],
+			],
+			'description'  => '告知内容に近い種別を選んでください。',
+			'prompt_label' => 'キャンペーン種別',
+		];
+
+		$fields[] = [
+			'id'           => 'compliance_notes',
+			'label'        => '表現上の注意',
+			'type'         => 'textarea',
+			'default'      => '',
+			'prompt_label' => '表現上の注意',
+		];
+
+		return $fields;
+	}
+);
+```
+
+対応している `type` は `text`、`textarea`、`number`、`checkbox`、`select` です。`id` は `sanitize_key()` で扱える一意の値にしてください。`include_in_prompt` に `false` を指定した項目は、画面やテンプレートには含まれますが、標準のプロンプトには自動挿入されません。
+
+値を独自に整えたい場合は、PHP 側で `sanitize_callback` を指定できます。この callback は REST レスポンスには含まれず、送信値やテンプレート値を保存・生成に使う前の sanitize にだけ利用されます。
+
+## AI に送信するプロンプトをカスタマイズする
+
+`odpp_ai_prompt` フィルターを使うと、AI Client に渡す直前の最終プロンプトを変更できます。
+
+```php
+add_filter(
+	'odpp_ai_prompt',
+	static function ( string $prompt, array $request, array $profile ): string {
+		if ( ! empty( $request['extra_fields']['compliance_notes'] ) ) {
+			$prompt .= "\n\n外部プラグインからの追加ルール:\n";
+			$prompt .= (string) $request['extra_fields']['compliance_notes'];
+		}
+
+		return $prompt;
+	},
+	10,
+	3
+);
+```
+
+`$request` には sanitize 済みの生成条件が入り、外部フィールドの値は `$request['extra_fields']` から参照できます。未登録の `extra_fields` は生成時に破棄されるため、プロンプトへ混入しません。
+
 ## 権限について
 
 - 「コンテンツ生成」と「テンプレート」は、投稿を編集できるユーザーが利用できます。
@@ -308,7 +368,7 @@ add_filter(
 
 - 対応 WordPress: 7.0 以上
 - 対応 PHP: 7.4 以上
-- プラグインバージョン: 0.1.6
+- プラグインバージョン: 0.1.7
 - REST API namespace: `od-press-pilot/v1`
 - 広報プロフィール保存先 option: `od_ai_writer_profile`
 - テンプレート保存先 option: `od_press_pilot_templates`

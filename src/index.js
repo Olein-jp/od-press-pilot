@@ -162,6 +162,7 @@ const defaultGenerationForm = {
 	use_emoji: false,
 	generate_hashtags: true,
 	provider: 'auto',
+	extra_fields: {},
 };
 
 const translationLanguageOptions = [
@@ -186,7 +187,28 @@ function normalizeResult( response ) {
 	};
 }
 
-function normalizeGenerationForm( input = {}, providerOptions = [] ) {
+function normalizeExtraFields( inputExtraFields = {}, generationFields = [] ) {
+	const values = inputExtraFields && typeof inputExtraFields === 'object' && ! Array.isArray( inputExtraFields ) ? inputExtraFields : {};
+
+	return generationFields.reduce( ( extraFields, field ) => {
+		const rawValue = Object.prototype.hasOwnProperty.call( values, field.id ) ? values[ field.id ] : field.default;
+
+		if ( field.type === 'checkbox' ) {
+			extraFields[ field.id ] = Boolean( rawValue );
+			return extraFields;
+		}
+
+		if ( field.type === 'number' ) {
+			extraFields[ field.id ] = rawValue || rawValue === 0 ? String( rawValue ) : '';
+			return extraFields;
+		}
+
+		extraFields[ field.id ] = rawValue || '';
+		return extraFields;
+	}, {} );
+}
+
+function normalizeGenerationForm( input = {}, providerOptions = [], generationFields = [] ) {
 	const providerValues = providerOptions.map( ( option ) => option.value );
 	const provider = input.provider || defaultGenerationForm.provider;
 
@@ -200,6 +222,7 @@ function normalizeGenerationForm( input = {}, providerOptions = [] ) {
 		use_emoji: Boolean( input.use_emoji ),
 		generate_hashtags: input.generate_hashtags !== undefined ? Boolean( input.generate_hashtags ) : defaultGenerationForm.generate_hashtags,
 		provider: providerValues.length && ! providerValues.includes( provider ) ? 'auto' : provider,
+		extra_fields: normalizeExtraFields( input.extra_fields, generationFields ),
 	};
 }
 
@@ -249,13 +272,82 @@ function GeminiUsagePanel( { usage } ) {
 	);
 }
 
-function GenerationFields( { form, onChange, providerOptions, includeName = false, readOnly = false } ) {
+function GenerationFields( { form, onChange, providerOptions, generationFields = [], includeName = false, readOnly = false } ) {
 	const updateTranslationLanguages = ( language, isChecked ) => {
 		const nextLanguages = isChecked
 			? Array.from( new Set( [ ...form.translation_languages, language ] ) )
 			: form.translation_languages.filter( ( currentLanguage ) => currentLanguage !== language );
 
 		onChange( 'translation_languages', nextLanguages );
+	};
+	const updateExtraField = ( key, value ) => {
+		onChange( 'extra_fields', {
+			...( form.extra_fields || {} ),
+			[ key ]: value,
+		} );
+	};
+	const extraFieldValue = ( field ) => {
+		const values = form.extra_fields || {};
+		return Object.prototype.hasOwnProperty.call( values, field.id ) ? values[ field.id ] : field.default;
+	};
+	const renderExtraField = ( field ) => {
+		const commonProps = {
+			key: field.id,
+			label: field.label,
+			help: field.description || undefined,
+			disabled: readOnly,
+		};
+
+		if ( field.type === 'textarea' ) {
+			return (
+				<TextareaControl
+					{ ...commonProps }
+					value={ extraFieldValue( field ) || '' }
+					rows={ 4 }
+					onChange={ ( value ) => updateExtraField( field.id, value ) }
+				/>
+			);
+		}
+
+		if ( field.type === 'number' ) {
+			return (
+				<TextControl
+					{ ...commonProps }
+					type="number"
+					value={ extraFieldValue( field ) || '' }
+					onChange={ ( value ) => updateExtraField( field.id, value ) }
+				/>
+			);
+		}
+
+		if ( field.type === 'checkbox' ) {
+			return (
+				<CheckboxControl
+					{ ...commonProps }
+					checked={ Boolean( extraFieldValue( field ) ) }
+					onChange={ ( value ) => updateExtraField( field.id, value ) }
+				/>
+			);
+		}
+
+		if ( field.type === 'select' ) {
+			return (
+				<SelectControl
+					{ ...commonProps }
+					value={ extraFieldValue( field ) || '' }
+					options={ Array.isArray( field.options ) ? field.options : [] }
+					onChange={ ( value ) => updateExtraField( field.id, value ) }
+				/>
+			);
+		}
+
+		return (
+			<TextControl
+				{ ...commonProps }
+				value={ extraFieldValue( field ) || '' }
+				onChange={ ( value ) => updateExtraField( field.id, value ) }
+			/>
+		);
 	};
 
 	return (
@@ -333,6 +425,7 @@ function GenerationFields( { form, onChange, providerOptions, includeName = fals
 				disabled={ readOnly }
 				onChange={ ( value ) => onChange( 'provider', value ) }
 			/>
+			{ generationFields.map( renderExtraField ) }
 		</div>
 	);
 }
@@ -493,6 +586,7 @@ function ProfilePage() {
 function GeneratePage() {
 	const [ providers, setProviders ] = useState( { available: null, providers: [] } );
 	const [ usage, setUsage ] = useState( null );
+	const [ generationFields, setGenerationFields ] = useState( [] );
 	const [ templates, setTemplates ] = useState( [] );
 	const [ selectedTemplateId, setSelectedTemplateId ] = useState( '' );
 	const [ form, setForm ] = useState( defaultGenerationForm );
@@ -513,6 +607,12 @@ function GeneratePage() {
 					providers: [ { id: 'auto', label: __( 'AI Client 自動選択', 'od-press-pilot' ) } ],
 				} )
 			);
+	}, [] );
+
+	useEffect( () => {
+		apiFetch( { path: `/${ namespace }/generation-fields` } )
+			.then( ( response ) => setGenerationFields( Array.isArray( response ) ? response : [] ) )
+			.catch( () => setGenerationFields( [] ) );
 	}, [] );
 
 	useEffect( () => {
@@ -556,7 +656,7 @@ function GeneratePage() {
 			return;
 		}
 
-		setForm( normalizeGenerationForm( template, providerOptions ) );
+		setForm( normalizeGenerationForm( template, providerOptions, generationFields ) );
 		setNotice( { status: 'success', message: __( 'テンプレートを生成条件に反映しました。', 'od-press-pilot' ) } );
 	};
 
@@ -679,7 +779,7 @@ function GeneratePage() {
 									{ __( '適用', 'od-press-pilot' ) }
 								</Button>
 							</div>
-							<GenerationFields form={ form } onChange={ updateForm } providerOptions={ providerOptions } />
+							<GenerationFields form={ form } onChange={ updateForm } providerOptions={ providerOptions } generationFields={ generationFields } />
 							{ isGoogleProvider( form.provider ) && <GeminiUsagePanel usage={ usage } /> }
 							<div className="od-press-pilot__actions">
 								<Button variant="primary" onClick={ generate } isBusy={ isGenerating } disabled={ isGenerating || ! form.post_content }>
@@ -730,6 +830,7 @@ function GeneratePage() {
 
 function TemplatesPage() {
 	const [ providers, setProviders ] = useState( { available: null, providers: [] } );
+	const [ generationFields, setGenerationFields ] = useState( [] );
 	const [ templates, setTemplates ] = useState( [] );
 	const [ selectedTemplateId, setSelectedTemplateId ] = useState( '' );
 	const [ draft, setDraft ] = useState( { ...defaultGenerationForm, name: '' } );
@@ -747,6 +848,10 @@ function TemplatesPage() {
 					providers: [ { id: 'auto', label: __( 'AI Client 自動選択', 'od-press-pilot' ) } ],
 				} )
 			);
+
+		apiFetch( { path: `/${ namespace }/generation-fields` } )
+			.then( ( response ) => setGenerationFields( Array.isArray( response ) ? response : [] ) )
+			.catch( () => setGenerationFields( [] ) );
 
 		apiFetch( { path: `/${ namespace }/templates` } )
 			.then( ( response ) => setTemplates( Array.isArray( response ) ? response : [] ) )
@@ -772,7 +877,7 @@ function TemplatesPage() {
 	const selectTemplate = ( template ) => {
 		setSelectedTemplateId( template.id );
 		setDraft( {
-			...normalizeGenerationForm( template, providerOptions ),
+			...normalizeGenerationForm( template, providerOptions, generationFields ),
 			id: template.id,
 			name: template.name || '',
 		} );
@@ -814,7 +919,7 @@ function TemplatesPage() {
 			setTemplates( nextTemplates );
 			setSelectedTemplateId( response.id );
 			setDraft( {
-				...normalizeGenerationForm( response, providerOptions ),
+				...normalizeGenerationForm( response, providerOptions, generationFields ),
 				id: response.id,
 				name: response.name || '',
 			} );
@@ -905,7 +1010,7 @@ function TemplatesPage() {
 									{ __( '外部テンプレートは別プラグインから読み込まれているため、この画面では編集・削除できません。', 'od-press-pilot' ) }
 								</Notice>
 							) }
-							<GenerationFields form={ draft } onChange={ updateDraft } providerOptions={ providerOptions } includeName readOnly={ isSelectedTemplateReadonly } />
+							<GenerationFields form={ draft } onChange={ updateDraft } providerOptions={ providerOptions } generationFields={ generationFields } includeName readOnly={ isSelectedTemplateReadonly } />
 							{ ! isSelectedTemplateReadonly && (
 								<div className="od-press-pilot__actions">
 									<Button variant="primary" onClick={ saveTemplate } isBusy={ isSaving } disabled={ isSaving || ! draft.name.trim() }>

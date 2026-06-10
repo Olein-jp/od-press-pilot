@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace ODPressPilot\Settings;
 
+use ODPressPilot\Generation\FieldRegistry;
 use WP_Error;
 
 if (! defined('ABSPATH')) {
@@ -36,6 +37,7 @@ final class TemplateSettings {
 			'use_emoji'                   => false,
 			'generate_hashtags'           => true,
 			'provider'                    => 'auto',
+			'extra_fields'                => [],
 			'updated_at'                  => '',
 			'source'                      => 'local',
 			'readonly'                    => false,
@@ -242,6 +244,7 @@ final class TemplateSettings {
 			'use_emoji'                   => ! empty($input['use_emoji']),
 			'generate_hashtags'           => ! empty($input['generate_hashtags']),
 			'provider'                    => '' === $provider ? 'auto' : $provider,
+			'extra_fields'                => FieldRegistry::sanitize_values($input['extra_fields'] ?? []),
 			'updated_at'                  => $touch ? wp_date(DATE_ATOM) : sanitize_text_field((string) ($input['updated_at'] ?? '')),
 			'source'                      => 'local',
 			'readonly'                    => false,
