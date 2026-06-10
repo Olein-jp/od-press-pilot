@@ -25,8 +25,8 @@ final class Admin {
 
 	public static function register_menu(): void {
 		add_menu_page(
-			__('AIお知らせ作成', 'od-press-pilot'),
-			__('AIお知らせ作成', 'od-press-pilot'),
+			__('Press Pilot', 'od-press-pilot'),
+			__('Press Pilot', 'od-press-pilot'),
 			'edit_posts',
 			self::MENU_SLUG,
 			[self::class, 'render_page'],

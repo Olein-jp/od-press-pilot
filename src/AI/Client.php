@@ -166,7 +166,7 @@ final class Client {
 
 		error_log(
 			sprintf(
-				'OD Press Pilot AI generation failed: code=%s message=%s data=%s',
+				'Press Pilot AI generation failed: code=%s message=%s data=%s',
 				$error->get_error_code(),
 				$error->get_error_message(),
 				wp_json_encode($error->get_error_data(), JSON_UNESCAPED_UNICODE)
