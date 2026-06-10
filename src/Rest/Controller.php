@@ -51,6 +51,16 @@ final class Controller {
 
 		register_rest_route(
 			OD_PRESS_PILOT_REST_NAMESPACE,
+			'/usage',
+			[
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => [self::class, 'get_usage'],
+				'permission_callback' => static fn (): bool => current_user_can('edit_posts'),
+			]
+		);
+
+		register_rest_route(
+			OD_PRESS_PILOT_REST_NAMESPACE,
 			'/templates',
 			[
 				[
@@ -119,6 +129,13 @@ final class Controller {
 			'available' => Client::is_available(),
 			'providers' => Client::get_providers(),
 		];
+	}
+
+	/**
+	 * @return array<string, mixed>
+	 */
+	public static function get_usage(): array {
+		return Client::get_usage_stats();
 	}
 
 	/**

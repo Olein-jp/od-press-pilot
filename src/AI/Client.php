@@ -77,13 +77,17 @@ final class Client {
 		if (is_wp_error($json)) {
 			self::log_generation_error($json);
 
-			return self::create_generation_error($json);
+			return self::create_generation_error($json, $provider);
 		}
 
 		$parsed = ResponseParser::parse((string) $json);
 
 		if (is_wp_error($parsed)) {
 			return $parsed;
+		}
+
+		if (self::is_google_provider($provider)) {
+			UsageStats::record_generation($provider);
 		}
 
 		return self::apply_requested_translation_labels($parsed, $request);
@@ -170,8 +174,12 @@ final class Client {
 		);
 	}
 
-	private static function create_generation_error(WP_Error $error): WP_Error {
+	private static function create_generation_error(WP_Error $error, string $provider = ''): WP_Error {
 		$details = self::generation_error_details($error);
+
+		if (self::is_google_provider($provider) && self::is_rate_limit_error_code($details['code'])) {
+			UsageStats::record_rate_limit_error($provider, $details['raw']);
+		}
 
 		return new WP_Error(
 			$details['code'],
@@ -208,11 +216,20 @@ final class Client {
 			];
 		}
 
-		if (self::contains_any($normalized, ['insufficient_quota', 'quota', 'billing', 'credit', 'credits', 'balance', 'payment', 'hard_limit'])) {
+		if (self::contains_any($normalized, ['insufficient_quota', 'billing', 'credit', 'credits', 'balance', 'payment', 'hard_limit'])) {
 			return [
 				'code'    => 'od_press_pilot_billing_required',
 				'message' => __('AI Provider 側の利用枠またはクレジットが不足している可能性があります。API キーを発行済みでも、Billing の有効化、支払い方法、またはクレジット残高を確認してください。', 'od-press-pilot') . self::format_raw_error($raw),
 				'status'  => 402,
+				'raw'     => $raw,
+			];
+		}
+
+		if (self::contains_any($normalized, ['resource_exhausted', 'resource exhausted', 'quota exceeded', 'current quota', 'rate_limit', 'rate limit', 'too many requests', 'requests per minute', 'tokens per minute', 'requests per day', '429'])) {
+			return [
+				'code'    => 'od_press_pilot_provider_rate_limited',
+				'message' => __('AI Provider の無料枠または現在の利用上限に達した可能性があります。しばらく時間をおいて再実行してください。日次上限に達している場合は、翌日以降に再度お試しください。継続的に利用する場合は、Provider 側の利用上限や課金設定を確認してください。', 'od-press-pilot') . self::format_raw_error($raw),
+				'status'  => 429,
 				'raw'     => $raw,
 			];
 		}
@@ -222,15 +239,6 @@ final class Client {
 				'code'    => 'od_press_pilot_auth_failed',
 				'message' => __('AI Provider の認証に失敗しました。Settings > Connectors で API キーが正しく保存されているか、キーが無効化されていないか確認してください。', 'od-press-pilot') . self::format_raw_error($raw),
 				'status'  => 401,
-				'raw'     => $raw,
-			];
-		}
-
-		if (self::contains_any($normalized, ['rate_limit', 'rate limit', 'too many requests', '429'])) {
-			return [
-				'code'    => 'od_press_pilot_rate_limited',
-				'message' => __('AI Provider のレート制限に達しました。少し時間を空けてから再実行してください。', 'od-press-pilot') . self::format_raw_error($raw),
-				'status'  => 429,
 				'raw'     => $raw,
 			];
 		}
@@ -322,6 +330,14 @@ final class Client {
 		return false;
 	}
 
+	private static function is_google_provider(string $provider): bool {
+		return 'google' === sanitize_key($provider);
+	}
+
+	private static function is_rate_limit_error_code(string $code): bool {
+		return in_array($code, ['od_press_pilot_provider_rate_limited'], true);
+	}
+
 	/**
 	 * Return selectable provider choices for the UI.
 	 *
@@ -360,6 +376,15 @@ final class Client {
 		$builder = wp_ai_client_prompt('test');
 
 		return true === $builder->is_supported_for_text_generation();
+	}
+
+	/**
+	 * Return tracked AI Provider usage stats.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public static function get_usage_stats(): array {
+		return UsageStats::all();
 	}
 
 	/**

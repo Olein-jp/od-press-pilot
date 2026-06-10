@@ -203,6 +203,52 @@ function normalizeGenerationForm( input = {}, providerOptions = [] ) {
 	};
 }
 
+function isGoogleProvider( provider ) {
+	return provider === 'google';
+}
+
+function GeminiUsagePanel( { usage } ) {
+	const googleUsage = usage?.google || {};
+	const dailyCount = Number.isFinite( Number( googleUsage.daily_count ) ) ? Number( googleUsage.daily_count ) : 0;
+	const recentCount = Number.isFinite( Number( googleUsage.recent_count ) ) ? Number( googleUsage.recent_count ) : 0;
+	const lastErrorAt = googleUsage.last_rate_limit_error_at || '';
+	const lastErrorMessage = googleUsage.last_rate_limit_error_message || '';
+
+	return (
+		<div className="od-press-pilot__usage-panel">
+			<h3>{ __( 'Gemini 利用状況の目安', 'od-press-pilot' ) }</h3>
+			<p>
+				{ __(
+					'ここに表示される回数は、この WordPress サイトから od-press-pilot が記録した生成回数です。Google AI 側の正確な残量ではありません。',
+					'od-press-pilot'
+				) }
+			</p>
+			<dl>
+				<div>
+					<dt>{ __( '今日の生成回数', 'od-press-pilot' ) }</dt>
+					<dd>{ sprintf( __( '%d 回', 'od-press-pilot' ), dailyCount ) }</dd>
+				</div>
+				<div>
+					<dt>{ __( '直近1分の生成回数', 'od-press-pilot' ) }</dt>
+					<dd>{ sprintf( __( '%d 回', 'od-press-pilot' ), recentCount ) }</dd>
+				</div>
+				<div>
+					<dt>{ __( '最後の上限エラー', 'od-press-pilot' ) }</dt>
+					<dd>
+						{ lastErrorAt
+							? sprintf( __( '%s に検知', 'od-press-pilot' ), lastErrorAt )
+							: __( 'まだ検知していません', 'od-press-pilot' ) }
+					</dd>
+				</div>
+			</dl>
+			{ lastErrorMessage && <p className="od-press-pilot__usage-detail">{ lastErrorMessage }</p> }
+			<ExternalLink href="https://aistudio.google.com/">
+				{ __( 'Google AI Studio で正確な利用状況を確認する', 'od-press-pilot' ) }
+			</ExternalLink>
+		</div>
+	);
+}
+
 function GenerationFields( { form, onChange, providerOptions, includeName = false } ) {
 	const updateTranslationLanguages = ( language, isChecked ) => {
 		const nextLanguages = isChecked
@@ -437,6 +483,7 @@ function ProfilePage() {
 
 function GeneratePage() {
 	const [ providers, setProviders ] = useState( { available: null, providers: [] } );
+	const [ usage, setUsage ] = useState( null );
 	const [ templates, setTemplates ] = useState( [] );
 	const [ selectedTemplateId, setSelectedTemplateId ] = useState( '' );
 	const [ form, setForm ] = useState( defaultGenerationForm );
@@ -463,6 +510,16 @@ function GeneratePage() {
 		apiFetch( { path: `/${ namespace }/templates` } )
 			.then( ( response ) => setTemplates( Array.isArray( response ) ? response : [] ) )
 			.catch( () => setTemplates( [] ) );
+	}, [] );
+
+	const refreshUsage = () => {
+		apiFetch( { path: `/${ namespace }/usage` } )
+			.then( setUsage )
+			.catch( () => setUsage( null ) );
+	};
+
+	useEffect( () => {
+		refreshUsage();
 	}, [] );
 
 	const providerOptions = useMemo(
@@ -535,6 +592,9 @@ function GeneratePage() {
 		} catch ( error ) {
 			setNotice( { status: 'error', message: getErrorMessage( error, __( 'コンテンツ生成に失敗しました。', 'od-press-pilot' ) ) } );
 		} finally {
+			if ( isGoogleProvider( form.provider ) ) {
+				refreshUsage();
+			}
 			setIsGenerating( false );
 		}
 	};
@@ -608,6 +668,7 @@ function GeneratePage() {
 								</Button>
 							</div>
 							<GenerationFields form={ form } onChange={ updateForm } providerOptions={ providerOptions } />
+							{ isGoogleProvider( form.provider ) && <GeminiUsagePanel usage={ usage } /> }
 							<div className="od-press-pilot__actions">
 								<Button variant="primary" onClick={ generate } isBusy={ isGenerating } disabled={ isGenerating || ! form.post_content }>
 									{ __( '生成', 'od-press-pilot' ) }

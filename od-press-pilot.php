@@ -36,6 +36,7 @@ require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/Settings/ProfileSettings.php';
 require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/Settings/TemplateSettings.php';
 require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/AI/PromptBuilder.php';
 require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/AI/ResponseParser.php';
+require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/AI/UsageStats.php';
 require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/AI/Client.php';
 require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/Draft/ContentBlockConverter.php';
 require_once OD_PRESS_PILOT_PLUGIN_DIR . 'src/Draft/DraftCreator.php';
