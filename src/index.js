@@ -436,7 +436,7 @@ function ProfilePage() {
 }
 
 function GeneratePage() {
-	const [ providers, setProviders ] = useState( { available: false, providers: [] } );
+	const [ providers, setProviders ] = useState( { available: null, providers: [] } );
 	const [ templates, setTemplates ] = useState( [] );
 	const [ selectedTemplateId, setSelectedTemplateId ] = useState( '' );
 	const [ form, setForm ] = useState( defaultGenerationForm );
@@ -587,7 +587,7 @@ function GeneratePage() {
 					{ notice.message }
 				</Notice>
 			) }
-			{ ! providers.available && (
+			{ providers.available === false && (
 				<Notice status="warning" isDismissible={ false }>
 					{ __( 'AI Provider が利用できません。WordPress 7.0 以上で Settings > Connectors から AI Provider を設定してください。', 'od-press-pilot' ) }
 				</Notice>
@@ -656,7 +656,7 @@ function GeneratePage() {
 }
 
 function TemplatesPage() {
-	const [ providers, setProviders ] = useState( { available: false, providers: [] } );
+	const [ providers, setProviders ] = useState( { available: null, providers: [] } );
 	const [ templates, setTemplates ] = useState( [] );
 	const [ selectedTemplateId, setSelectedTemplateId ] = useState( '' );
 	const [ draft, setDraft ] = useState( { ...defaultGenerationForm, name: '' } );
