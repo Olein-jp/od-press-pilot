@@ -38,12 +38,23 @@ final class Client {
 		$profile = ProfileSettings::get();
 		$prompt  = PromptBuilder::build($profile, $request);
 		$builder = wp_ai_client_prompt($prompt);
+		$provider = sanitize_key((string) ($request['provider'] ?? 'auto'));
 
-		if (method_exists($builder, 'as_json_response')) {
-			$builder = $builder->as_json_response(PromptBuilder::schema());
+		if ('auto' !== $provider) {
+			if (! self::is_selectable_provider($provider)) {
+				return new WP_Error(
+					'od_press_pilot_provider_unavailable',
+					__('選択中の AI Provider は利用できません。Settings > Connectors の接続状態を確認してください。', 'od-press-pilot'),
+					['status' => 400]
+				);
+			}
+
+			$builder = $builder->using_provider($provider);
 		}
 
-		if (method_exists($builder, 'is_supported_for_text_generation') && ! $builder->is_supported_for_text_generation()) {
+		$builder = $builder->as_json_response(PromptBuilder::schema());
+
+		if (true !== $builder->is_supported_for_text_generation()) {
 			return new WP_Error('od_press_pilot_ai_unavailable', __('AI Provider が利用できません。', 'od-press-pilot'), ['status' => 503]);
 		}
 
@@ -317,18 +328,20 @@ final class Client {
 	 * @return array<int, array<string, string>>
 	 */
 	public static function get_providers(): array {
-		$providers = [
+		$providers = array_merge(
 			[
-				'id'    => 'auto',
-				'label' => __('AI Client 自動選択', 'od-press-pilot'),
+				[
+					'id'    => 'auto',
+					'label' => __('AI Client 自動選択', 'od-press-pilot'),
+				],
 			],
-		];
+			self::get_configured_ai_providers()
+		);
 
 		/**
 		 * Filter provider choices for integrations that expose provider IDs.
 		 *
-		 * The default stays provider-agnostic and lets WordPress AI Client choose
-		 * a suitable configured provider/model.
+		 * The default includes auto-selection and configured AI Provider connectors.
 		 *
 		 * @param array<int, array<string, string>> $providers Provider choices.
 		 */
@@ -340,8 +353,109 @@ final class Client {
 			return false;
 		}
 
+		if ([] !== self::get_configured_ai_providers()) {
+			return true;
+		}
+
 		$builder = wp_ai_client_prompt('test');
 
-		return ! method_exists($builder, 'is_supported_for_text_generation') || $builder->is_supported_for_text_generation();
+		return true === $builder->is_supported_for_text_generation();
+	}
+
+	/**
+	 * @return array<int, array{id:string,label:string}>
+	 */
+	private static function get_configured_ai_providers(): array {
+		if (! function_exists('wp_get_connectors')) {
+			return [];
+		}
+
+		$connectors = wp_get_connectors();
+
+		if (! is_array($connectors)) {
+			return [];
+		}
+
+		$providers = [];
+
+		foreach ($connectors as $id => $connector) {
+			if (! is_string($id) || ! is_array($connector)) {
+				continue;
+			}
+
+			if ('ai_provider' !== ($connector['type'] ?? '')) {
+				continue;
+			}
+
+			if (! self::is_connector_plugin_active($connector)) {
+				continue;
+			}
+
+			if (! self::is_ai_provider_configured($id, $connector)) {
+				continue;
+			}
+
+			$providers[] = [
+				'id'    => sanitize_key($id),
+				'label' => self::provider_label($id, $connector),
+			];
+		}
+
+		return $providers;
+	}
+
+	/**
+	 * @param array<string, mixed> $connector Connector metadata.
+	 */
+	private static function is_connector_plugin_active(array $connector): bool {
+		$is_active = $connector['plugin']['is_active'] ?? null;
+
+		return ! is_callable($is_active) || (bool) $is_active();
+	}
+
+	/**
+	 * @param array<string, mixed> $connector Connector metadata.
+	 */
+	private static function is_ai_provider_configured(string $id, array $connector): bool {
+		if (class_exists('\WordPress\AiClient\AiClient')) {
+			try {
+				return \WordPress\AiClient\AiClient::isConfigured($id);
+			} catch (\Throwable $e) {
+				return false;
+			}
+		}
+
+		$auth    = is_array($connector['authentication'] ?? null) ? $connector['authentication'] : [];
+		$setting = (string) ($auth['setting_name'] ?? '');
+
+		if ('' !== $setting && (bool) get_option($setting)) {
+			return true;
+		}
+
+		$constant = (string) ($auth['constant_name'] ?? '');
+
+		return '' !== $constant && defined($constant) && '' !== (string) constant($constant);
+	}
+
+	/**
+	 * @param array<string, mixed> $connector Connector metadata.
+	 */
+	private static function provider_label(string $id, array $connector): string {
+		if ('google' === $id) {
+			return __('Google (Gemini)', 'od-press-pilot');
+		}
+
+		$name = trim((string) ($connector['name'] ?? ''));
+
+		return '' !== $name ? $name : $id;
+	}
+
+	private static function is_selectable_provider(string $provider): bool {
+		$provider_ids = array_map(
+			static fn (array $provider_choice): string => sanitize_key((string) ($provider_choice['id'] ?? '')),
+			self::get_providers()
+		);
+
+		return in_array($provider, $provider_ids, true);
 	}
 }

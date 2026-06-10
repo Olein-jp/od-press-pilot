@@ -50,7 +50,7 @@ bash scripts/build-release-zip.sh 0.1.0
 - AIお知らせ作成 > コンテンツ生成
 - AIお知らせ作成 > 広報プロフィール
 
-AI Provider の API キーはこのプラグインでは保存しません。WordPress 7.0 以上の Settings > Connectors で設定された Provider を AI Client 経由で利用します。
+AI Provider の API キーはこのプラグインでは保存しません。WordPress 7.0 以上の Settings > Connectors で設定された Provider を AI Client 経由で利用します。OpenAI、Google (Gemini)、Anthropic など複数の AI Provider が接続済みの場合は、コンテンツ生成画面で使用する Provider を選択できます。
 
 ## リリース
 
