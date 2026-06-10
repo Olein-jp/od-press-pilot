@@ -308,7 +308,7 @@ add_filter(
 
 - 対応 WordPress: 7.0 以上
 - 対応 PHP: 7.4 以上
-- プラグインバージョン: 0.1.5
+- プラグインバージョン: 0.1.6
 - REST API namespace: `od-press-pilot/v1`
 - 広報プロフィール保存先 option: `od_ai_writer_profile`
 - テンプレート保存先 option: `od_press_pilot_templates`
