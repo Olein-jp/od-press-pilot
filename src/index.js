@@ -249,7 +249,7 @@ function GeminiUsagePanel( { usage } ) {
 	);
 }
 
-function GenerationFields( { form, onChange, providerOptions, includeName = false } ) {
+function GenerationFields( { form, onChange, providerOptions, includeName = false, readOnly = false } ) {
 	const updateTranslationLanguages = ( language, isChecked ) => {
 		const nextLanguages = isChecked
 			? Array.from( new Set( [ ...form.translation_languages, language ] ) )
@@ -265,6 +265,7 @@ function GenerationFields( { form, onChange, providerOptions, includeName = fals
 					label={ __( 'テンプレート名', 'od-press-pilot' ) }
 					value={ form.name || '' }
 					required
+					disabled={ readOnly }
 					onChange={ ( value ) => onChange( 'name', value ) }
 				/>
 			) }
@@ -273,18 +274,21 @@ function GenerationFields( { form, onChange, providerOptions, includeName = fals
 				value={ form.post_content }
 				rows={ 10 }
 				required
+				disabled={ readOnly }
 				onChange={ ( value ) => onChange( 'post_content', value ) }
 			/>
 			<TextareaControl
 				label={ __( '対象読者', 'od-press-pilot' ) }
 				value={ form.audience }
 				rows={ 4 }
+				disabled={ readOnly }
 				onChange={ ( value ) => onChange( 'audience', value ) }
 			/>
 			<TextControl
 				type="number"
 				label={ __( '希望文字数', 'od-press-pilot' ) }
 				value={ form.desired_length }
+				disabled={ readOnly }
 				onChange={ ( value ) => onChange( 'desired_length', value ) }
 			/>
 			<fieldset className="od-press-pilot__translation-control">
@@ -295,6 +299,7 @@ function GenerationFields( { form, onChange, providerOptions, includeName = fals
 							key={ option.value }
 							label={ option.label }
 							checked={ form.translation_languages.includes( option.value ) }
+							disabled={ readOnly }
 							onChange={ ( value ) => updateTranslationLanguages( option.value, value ) }
 						/>
 					) ) }
@@ -305,23 +310,27 @@ function GenerationFields( { form, onChange, providerOptions, includeName = fals
 					label={ __( 'カスタム翻訳言語', 'od-press-pilot' ) }
 					placeholder={ __( '例: フランス語、スペイン語、ベトナム語', 'od-press-pilot' ) }
 					value={ form.custom_translation_language }
+					disabled={ readOnly }
 					onChange={ ( value ) => onChange( 'custom_translation_language', value ) }
 				/>
 			) }
 			<CheckboxControl
 				label={ __( '絵文字を利用する', 'od-press-pilot' ) }
 				checked={ form.use_emoji }
+				disabled={ readOnly }
 				onChange={ ( value ) => onChange( 'use_emoji', value ) }
 			/>
 			<CheckboxControl
 				label={ __( 'ハッシュタグを生成する', 'od-press-pilot' ) }
 				checked={ form.generate_hashtags }
+				disabled={ readOnly }
 				onChange={ ( value ) => onChange( 'generate_hashtags', value ) }
 			/>
 			<SelectControl
 				label={ __( 'AI Provider', 'od-press-pilot' ) }
 				value={ form.provider }
 				options={ providerOptions }
+				disabled={ readOnly }
 				onChange={ ( value ) => onChange( 'provider', value ) }
 			/>
 		</div>
@@ -534,7 +543,10 @@ function GeneratePage() {
 	const updateResult = ( key, value ) => setResult( { ...result, [ key ]: value } );
 	const templateOptions = [
 		{ label: __( 'テンプレートを選択', 'od-press-pilot' ), value: '' },
-		...templates.map( ( template ) => ( { label: template.name, value: template.id } ) ),
+		...templates.map( ( template ) => ( {
+			label: template.readonly ? sprintf( __( '%s（外部）', 'od-press-pilot' ), template.name ) : template.name,
+			value: template.id,
+		} ) ),
 	];
 
 	const applyTemplate = () => {
@@ -754,6 +766,8 @@ function TemplatesPage() {
 				: [ { label: __( 'AI Client 自動選択', 'od-press-pilot' ), value: 'auto' } ],
 		[ providers.providers ]
 	);
+	const selectedTemplate = templates.find( ( template ) => template.id === selectedTemplateId );
+	const isSelectedTemplateReadonly = Boolean( selectedTemplate?.readonly );
 
 	const selectTemplate = ( template ) => {
 		setSelectedTemplateId( template.id );
@@ -774,6 +788,11 @@ function TemplatesPage() {
 	const updateDraft = ( key, value ) => setDraft( { ...draft, [ key ]: value } );
 
 	const saveTemplate = async () => {
+		if ( isSelectedTemplateReadonly ) {
+			setNotice( { status: 'warning', message: __( '外部テンプレートは編集できません。新規作成から保存済みテンプレートを作成してください。', 'od-press-pilot' ) } );
+			return;
+		}
+
 		if ( ! draft.name.trim() ) {
 			setNotice( { status: 'error', message: __( 'テンプレート名を入力してください。', 'od-press-pilot' ) } );
 			return;
@@ -808,6 +827,11 @@ function TemplatesPage() {
 	};
 
 	const deleteTemplate = async () => {
+		if ( isSelectedTemplateReadonly ) {
+			setNotice( { status: 'warning', message: __( '外部テンプレートは削除できません。', 'od-press-pilot' ) } );
+			return;
+		}
+
 		if ( ! selectedTemplateId || ! window.confirm( __( 'このテンプレートを削除しますか？', 'od-press-pilot' ) ) ) {
 			return;
 		}
@@ -848,7 +872,7 @@ function TemplatesPage() {
 				<Card>
 					<CardBody>
 						<div className="od-press-pilot__template-list-header">
-							<h2>{ __( '保存済みテンプレート', 'od-press-pilot' ) }</h2>
+							<h2>{ __( 'テンプレート', 'od-press-pilot' ) }</h2>
 							<Button variant="secondary" onClick={ createNewTemplate }>
 								{ __( '新規作成', 'od-press-pilot' ) }
 							</Button>
@@ -861,7 +885,10 @@ function TemplatesPage() {
 										variant={ selectedTemplateId === template.id ? 'primary' : 'tertiary' }
 										onClick={ () => selectTemplate( template ) }
 									>
-										{ template.name }
+										<span className="od-press-pilot__template-list-label">
+											<span>{ template.name }</span>
+											{ template.readonly && <span className="od-press-pilot__template-source">{ __( '外部', 'od-press-pilot' ) }</span> }
+										</span>
 									</Button>
 								) ) }
 							</div>
@@ -872,18 +899,25 @@ function TemplatesPage() {
 				</Card>
 				<Card>
 					<CardBody>
-						<PanelBody title={ selectedTemplateId ? __( 'テンプレート編集', 'od-press-pilot' ) : __( 'テンプレート新規作成', 'od-press-pilot' ) } initialOpen>
-							<GenerationFields form={ draft } onChange={ updateDraft } providerOptions={ providerOptions } includeName />
-							<div className="od-press-pilot__actions">
-								<Button variant="primary" onClick={ saveTemplate } isBusy={ isSaving } disabled={ isSaving || ! draft.name.trim() }>
-									{ __( '保存', 'od-press-pilot' ) }
-								</Button>
-								{ selectedTemplateId && (
-									<Button variant="secondary" isDestructive onClick={ deleteTemplate } isBusy={ isDeleting } disabled={ isDeleting }>
-										{ __( '削除', 'od-press-pilot' ) }
+						<PanelBody title={ isSelectedTemplateReadonly ? __( '外部テンプレート', 'od-press-pilot' ) : selectedTemplateId ? __( 'テンプレート編集', 'od-press-pilot' ) : __( 'テンプレート新規作成', 'od-press-pilot' ) } initialOpen>
+							{ isSelectedTemplateReadonly && (
+								<Notice status="info" isDismissible={ false }>
+									{ __( '外部テンプレートは別プラグインから読み込まれているため、この画面では編集・削除できません。', 'od-press-pilot' ) }
+								</Notice>
+							) }
+							<GenerationFields form={ draft } onChange={ updateDraft } providerOptions={ providerOptions } includeName readOnly={ isSelectedTemplateReadonly } />
+							{ ! isSelectedTemplateReadonly && (
+								<div className="od-press-pilot__actions">
+									<Button variant="primary" onClick={ saveTemplate } isBusy={ isSaving } disabled={ isSaving || ! draft.name.trim() }>
+										{ __( '保存', 'od-press-pilot' ) }
 									</Button>
-								) }
-							</div>
+									{ selectedTemplateId && (
+										<Button variant="secondary" isDestructive onClick={ deleteTemplate } isBusy={ isDeleting } disabled={ isDeleting }>
+											{ __( '削除', 'od-press-pilot' ) }
+										</Button>
+									) }
+								</div>
+							) }
 						</PanelBody>
 					</CardBody>
 				</Card>

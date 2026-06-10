@@ -37,6 +37,8 @@ final class TemplateSettings {
 			'generate_hashtags'           => true,
 			'provider'                    => 'auto',
 			'updated_at'                  => '',
+			'source'                      => 'local',
+			'readonly'                    => false,
 		];
 	}
 
@@ -46,6 +48,15 @@ final class TemplateSettings {
 	 * @return array<int, array<string, mixed>>
 	 */
 	public static function all(): array {
+		return array_values(array_merge(self::stored(), self::external()));
+	}
+
+	/**
+	 * Get all stored templates.
+	 *
+	 * @return array<int, array<string, mixed>>
+	 */
+	private static function stored(): array {
 		$value = get_option(self::OPTION_NAME, []);
 
 		if (! is_array($value)) {
@@ -70,6 +81,46 @@ final class TemplateSettings {
 	}
 
 	/**
+	 * Get templates registered by external plugins.
+	 *
+	 * @return array<int, array<string, mixed>>
+	 */
+	private static function external(): array {
+		$registered_templates = apply_filters('odpp_external_templates', []);
+
+		if (! is_array($registered_templates)) {
+			return [];
+		}
+
+		$templates    = [];
+		$known_ids    = array_fill_keys(array_column(self::stored(), 'id'), true);
+		$external_ids = [];
+
+		foreach ($registered_templates as $template) {
+			if (! is_array($template)) {
+				continue;
+			}
+
+			if (empty($template['id'])) {
+				continue;
+			}
+
+			$sanitized = self::sanitize($template, '', false);
+
+			if ('' === $sanitized['id'] || '' === $sanitized['name'] || isset($known_ids[$sanitized['id']]) || isset($external_ids[$sanitized['id']])) {
+				continue;
+			}
+
+			$sanitized['source'] = 'external';
+			$sanitized['readonly'] = true;
+			$templates[] = $sanitized;
+			$external_ids[$sanitized['id']] = true;
+		}
+
+		return $templates;
+	}
+
+	/**
 	 * Create a template.
 	 *
 	 * @param array<string, mixed> $input Raw input.
@@ -82,7 +133,7 @@ final class TemplateSettings {
 			return new WP_Error('od_press_pilot_template_name_required', __('テンプレート名を入力してください。', 'od-press-pilot'), ['status' => 400]);
 		}
 
-		$templates   = self::all();
+		$templates   = self::stored();
 		$templates[] = $template;
 
 		self::save_all($templates);
@@ -99,7 +150,7 @@ final class TemplateSettings {
 	 */
 	public static function update(string $id, array $input) {
 		$id        = sanitize_key($id);
-		$templates = self::all();
+		$templates = self::stored();
 
 		foreach ($templates as $index => $template) {
 			if ($id !== $template['id']) {
@@ -118,6 +169,10 @@ final class TemplateSettings {
 			return $updated;
 		}
 
+		if (self::has_external($id)) {
+			return new WP_Error('od_press_pilot_template_readonly', __('外部テンプレートは編集できません。', 'od-press-pilot'), ['status' => 403]);
+		}
+
 		return new WP_Error('od_press_pilot_template_not_found', __('テンプレートが見つかりませんでした。', 'od-press-pilot'), ['status' => 404]);
 	}
 
@@ -129,7 +184,7 @@ final class TemplateSettings {
 	 */
 	public static function delete(string $id) {
 		$id        = sanitize_key($id);
-		$templates = self::all();
+		$templates = self::stored();
 		$next      = [];
 		$deleted   = false;
 
@@ -143,6 +198,10 @@ final class TemplateSettings {
 		}
 
 		if (! $deleted) {
+			if (self::has_external($id)) {
+				return new WP_Error('od_press_pilot_template_readonly', __('外部テンプレートは削除できません。', 'od-press-pilot'), ['status' => 403]);
+			}
+
 			return new WP_Error('od_press_pilot_template_not_found', __('テンプレートが見つかりませんでした。', 'od-press-pilot'), ['status' => 404]);
 		}
 
@@ -150,7 +209,7 @@ final class TemplateSettings {
 
 		return [
 			'deleted'   => true,
-			'templates' => $next,
+			'templates' => self::all(),
 		];
 	}
 
@@ -184,7 +243,19 @@ final class TemplateSettings {
 			'generate_hashtags'           => ! empty($input['generate_hashtags']),
 			'provider'                    => '' === $provider ? 'auto' : $provider,
 			'updated_at'                  => $touch ? wp_date(DATE_ATOM) : sanitize_text_field((string) ($input['updated_at'] ?? '')),
+			'source'                      => 'local',
+			'readonly'                    => false,
 		];
+	}
+
+	private static function has_external(string $id): bool {
+		foreach (self::external() as $template) {
+			if ($id === $template['id']) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**

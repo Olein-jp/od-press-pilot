@@ -361,7 +361,7 @@ final class Client {
 		 *
 		 * @param array<int, array<string, string>> $providers Provider choices.
 		 */
-		return apply_filters('od_press_pilot_ai_providers', $providers);
+		return apply_filters('odpp_ai_providers', $providers);
 	}
 
 	public static function is_available(): bool {

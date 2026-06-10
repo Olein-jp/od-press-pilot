@@ -104,6 +104,23 @@
 	text-align: left;
 }
 
+.od-press-pilot__template-list-label {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+}
+
+.od-press-pilot__template-source {
+	flex: 0 0 auto;
+	padding: 1px 6px;
+	border: 1px solid currentColor;
+	border-radius: 999px;
+	font-size: 11px;
+	line-height: 1.4;
+}
+
 .od-press-pilot__grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
