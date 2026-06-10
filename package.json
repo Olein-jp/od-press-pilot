@@ -1,6 +1,6 @@
 {
   "name": "od-press-pilot",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "description": "Local WordPress plugin development environment for OD Press Pilot.",
   "scripts": {
